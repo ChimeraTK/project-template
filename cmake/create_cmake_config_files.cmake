@@ -27,6 +27,8 @@
 #
 #######################################################################################################################
 
+option(CTK_CMAKE_VERSIONED_INSTALL:BOOL "Do not append cmake version to install path for Find* files" ON)
+
 # create variables for standard makefiles and pkgconfig
 set(${PROJECT_NAME}_CXX_FLAGS_MAKEFILE "${${PROJECT_NAME}_CXX_FLAGS}")
 
@@ -91,8 +93,13 @@ install(FILES "${PROJECT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake"
   DESTINATION lib/cmake/${PROJECT_NAME} COMPONENT dev)
 
 # install same cmake configuration file another time into the Modules cmake subdirectory for compatibility reasons
+set(find_file_target_folder "cmake")
+if (CTK_CMAKE_VERSIONED_INSTALL)
+    string(APPEND find_file_target_folder "-${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION}")
+endif
+
 install(FILES "${PROJECT_BINARY_DIR}/${PROJECT_NAME}Config.cmake"
-  DESTINATION share/cmake-${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION}/Modules RENAME Find${PROJECT_NAME}.cmake COMPONENT dev)
+  DESTINATION share/${find_file_target_folder}/Modules RENAME Find${PROJECT_NAME}.cmake COMPONENT dev)
 
 # install script for Makefiles
 install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}-config DESTINATION bin COMPONENT dev)
