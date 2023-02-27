@@ -80,7 +80,8 @@ message("Using PKG_CONFIG_PATH=$ENV{PKG_CONFIG_PATH}")
 list(APPEND DOOCS_FIND_COMPONENTS libgul14)
 # END OF WORK AROUND
 
-pkg_check_modules(DOOCS REQUIRED ${DOOCS_FIND_COMPONENTS})
+# IMPORTED_TARGET means also imported target PkgConfig::DOOCS will be defined
+pkg_check_modules(DOOCS REQUIRED IMPORTED_TARGET ${DOOCS_FIND_COMPONENTS})
 
 string(REPLACE ";" " " DOOCS_CFLAGS "${DOOCS_CFLAGS}")
 string(REPLACE ";" " " DOOCS_LDFLAGS "${DOOCS_LDFLAGS}")
@@ -109,3 +110,23 @@ endif()
 include(FindPackageHandleStandardArgs)
 FIND_PACKAGE_HANDLE_STANDARD_ARGS(DOOCS REQUIRED_VARS DOOCS_DIR ${COMPONENT_DIRS} VERSION_VAR DOOCS_VERSION )
 
+if (DOOCS_FOUND)
+  # imported target
+  get_target_property(v PkgConfig::DOOCS INTERFACE_INCLUDE_DIRECTORIES)
+  message("imported target is PkgConfig::DOOCS")
+  message("  include dirs: ${v}")
+  get_target_property(v PkgConfig::DOOCS INTERFACE_COMPILE_OPTIONS)
+  message("  compile options: ${v}")
+  get_target_property(v PkgConfig::DOOCS INTERFACE_LINK_OPTIONS)
+  message("  link options: ${v}")
+  get_target_property(doocsLinkLibs PkgConfig::DOOCS INTERFACE_LINK_LIBRARIES)
+  
+  set_target_properties(PkgConfig::DOOCS PROPERTIES INTERFACE_LINK_LIBRARIES "${doocsLinkLibs};Threads::Threads" )
+  get_target_property(doocsLinkLibs PkgConfig::DOOCS INTERFACE_LINK_LIBRARIES)
+  message("  link libs: ${doocsLinkLibs}")
+  
+  # TODO : discuss whether --no-as-needed flag is acutually required, it's default behavior anyway and I don't
+  # see why bother introduce it here, if it was not in doocs pkg-config.
+  # Also, is tinemt needed?
+  # The other things are already fixed (gul14, threads, ddaq libs)
+endif()
