@@ -85,6 +85,5 @@ if(@PROVIDES_EXPORTED_TARGETS@)
 
     # include cmake's auto-generated exports file
     include("${CMAKE_CURRENT_LIST_DIR}/@PROJECT_NAME@Targets.cmake")
-    # TODO fix - this check seems to cause trouble with interface libs
     check_required_components(@PROJECT_NAME@)
 endif() 
