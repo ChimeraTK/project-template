@@ -62,7 +62,12 @@ foreach(DEPENDENCY ${${PROJECT_NAME}_PUBLIC_DEPENDENCIES})
 endforeach()
 
 if(TARGET ${PROJECT_NAME})
-  set(${PROJECT_NAME}_HAS_LIBRARY 1)
+  # set _HAS_LIBRARY only if we have a true library, interface libraries (introduced for imported targets,
+  #  e.g. header-only library) don't count.
+  get_target_property(targetLoc ${PROJECT_NAME} TYPE)
+  if(NOT "INTERFACE_LIBRARY" MATCHES "${targetLoc}")
+    set(${PROJECT_NAME}_HAS_LIBRARY 1)
+  endif()  
 else()
   set(${PROJECT_NAME}_HAS_LIBRARY 0)
 endif()
