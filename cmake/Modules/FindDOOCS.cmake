@@ -80,8 +80,10 @@ message("Using PKG_CONFIG_PATH=$ENV{PKG_CONFIG_PATH}")
 list(APPEND DOOCS_FIND_COMPONENTS libgul14)
 # END OF WORK AROUND
 
-# IMPORTED_TARGET means also imported target PkgConfig::DOOCS will be defined
-pkg_check_modules(DOOCS REQUIRED IMPORTED_TARGET ${DOOCS_FIND_COMPONENTS})
+
+# IMPORTED_TARGET means also imported target PkgConfig::DOOCS will be defined. GLOBAL so we can alias.
+#message("FindDOOCS called with DOOCS_FIND_COMPONENTS=${DOOCS_FIND_COMPONENTS} ")
+pkg_check_modules(DOOCS REQUIRED IMPORTED_TARGET GLOBAL ${DOOCS_FIND_COMPONENTS})
 
 string(REPLACE ";" " " DOOCS_CFLAGS "${DOOCS_CFLAGS}")
 string(REPLACE ";" " " DOOCS_LDFLAGS "${DOOCS_LDFLAGS}")
@@ -91,6 +93,7 @@ find_package(Threads REQUIRED)
 
 set(DOOCS_DIR "${DOOCS_doocs-doocsapi_LIBDIR}")
 set(DOOCS_VERSION "${DOOCS_doocs-doocsapi_VERSION}")
+#message("pkg_check_modules returned: libdir=|${DOOCS_doocs-doocsapi_LIBDIR}| version=|${DOOCS_doocs-doocsapi_VERSION}|")
 set(DOOCS_CXX_FLAGS ${DOOCS_CFLAGS})
 set(DOOCS_LIBRARIES ${DOOCS_LDFLAGS} ${CMAKE_THREAD_LIBS_INIT} tinemt)
 set(DOOCS_LINKER_FLAGS "-Wl,--no-as-needed")
@@ -112,8 +115,9 @@ FIND_PACKAGE_HANDLE_STANDARD_ARGS(DOOCS REQUIRED_VARS DOOCS_DIR ${COMPONENT_DIRS
 
 if (DOOCS_FOUND)
   # imported target
+  message("imported target is PkgConfig::DOOCS. Defining alias ChimeraTK::DOOCS")
+  add_library(ChimeraTK::DOOCS ALIAS PkgConfig::DOOCS)
   get_target_property(v PkgConfig::DOOCS INTERFACE_INCLUDE_DIRECTORIES)
-  message("imported target is PkgConfig::DOOCS")
   message("  include dirs: ${v}")
   get_target_property(v PkgConfig::DOOCS INTERFACE_COMPILE_OPTIONS)
   message("  compile options: ${v}")
@@ -123,10 +127,11 @@ if (DOOCS_FOUND)
   
   set_target_properties(PkgConfig::DOOCS PROPERTIES INTERFACE_LINK_LIBRARIES "${doocsLinkLibs};Threads::Threads" )
   get_target_property(doocsLinkLibs PkgConfig::DOOCS INTERFACE_LINK_LIBRARIES)
-  message("  link libs: ${doocsLinkLibs}")
+  message("  updated link libs: ${doocsLinkLibs}")
   
   # TODO : discuss whether --no-as-needed flag is acutually required, it's default behavior anyway and I don't
   # see why bother introduce it here, if it was not in doocs pkg-config.
   # Also, is tinemt needed?
-  # The other things are already fixed (gul14, threads, ddaq libs)
+  # The other things are already fixed (gul14, ddaq libs)
+  # Further, Martin K suggests to rename it PkgConfig:DOOCS -> ChimeraTK::DOOCS since we modified it
 endif()
