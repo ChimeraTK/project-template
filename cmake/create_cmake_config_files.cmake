@@ -30,26 +30,50 @@
 # for lib, which might be lib File or linker flag or imported target, 
 # puts recursively resolved library list into ${linkLibs}, which will contain a library file list
 # and recursively resolve link flags into ${linkFlags}
-function(resolveImportedLib lib linkLibs linkFlags)
+function(resolveImportedLib lib linkLibs linkFlags incDirs cxxFlags)
     set(linkLibs1 "")
     set(linkFlags1 "")
+    set(incDirs1 "")
+    set(cxxFlags1 "")
     if(lib MATCHES "/")         # library name contains slashes: link against the a file path name
         string(APPEND linkLibs1 " ${lib}")
     elseif(lib MATCHES "^[ \t]*-l")   # library name does not contain slashes but already the -l option: directly quote it
         string(APPEND linkLibs1 " ${lib}")
     elseif(lib MATCHES "::")    # library name is an imported target - we need to resolve it for Makefiles
         get_target_property(_libraryType ${lib} TYPE)
-        if (NOT ${_libraryType} MATCHES INTERFACE_LIBRARY)            
-            get_property(lib_loc TARGET ${lib} PROPERTY LOCATION)
-            #message("imported target ${lib} is actual library. location=${lib_loc}")
-            string(APPEND linkLibs1 " ${lib_loc}")
-        else()
-            get_target_property(_linkLibs ${lib} INTERFACE_LINK_LIBRARIES)
-            #message("imported target ${lib} is interface, recursively go over its interface requirements ${_linkLibs}")
+        if (${_libraryType} MATCHES "-NOTFOUND")
+            message(FATAL_ERROR "dependency ${lib} was not found!")
+        endif()
+        if ((${_libraryType} MATCHES SHARED_LIBRARY) OR (${_libraryType} MATCHES STATIC_LIBRARY))
+            # we cannot refer to ourselves as dependency -> leave out
+            if(NOT (";${lib};" MATCHES ";.*::${PROJECT_NAME};"))
+                get_property(lib_loc TARGET ${lib} PROPERTY LOCATION)
+                message("imported target ${lib} is actual library. location=${lib_loc}")
+                string(APPEND linkLibs1 " ${lib_loc}")
+            endif()
+        endif()
+        get_target_property(_linkLibs ${lib} INTERFACE_LINK_LIBRARIES)
+        if (NOT "${_linkLibs}" MATCHES "-NOTFOUND")
+            message("imported target ${lib} is interface, recursively go over its interface requirements ${_linkLibs}")
             foreach(_lib ${_linkLibs})
-                resolveImportedLib(${_lib} linkLibs2 linkFlags2)
+                resolveImportedLib(${_lib} linkLibs2 linkFlags2 incDirs2 cxxFlags2)
+                # TODO - we need to evaluate generator expressions somehow
                 string(APPEND linkLibs1 " ${linkLibs2}")
                 string(APPEND linkFlags1 " ${linkFlags2}")
+                string(APPEND incDirs1 " ${incDirs2}")
+                string(APPEND cxxFlags1 " ${cxxFlags2}")
+            endforeach()
+        endif()
+        get_target_property(_incDirs ${lib} INTERFACE_INCLUDE_DIRECTORIES)
+        if (NOT "${_incDirs}" MATCHES "-NOTFOUND")
+            foreach(INCLUDE_DIR ${_incDirs})
+                string(APPEND incDirs1 " ${INCLUDE_DIR}")
+            endforeach()
+        endif()
+        get_target_property(_cxxFlags ${lib} INTERFACE_COMPILE_OPTIONS)
+            if (NOT "${_cxxFlags}" MATCHES "-NOTFOUND")
+            foreach(cxxFlag ${_cxxFlags})
+                string(APPEND cxxFlags1 " ${cxxFlag}")
             endforeach()
         endif()
     else()                          # link against library with -l option
@@ -58,7 +82,35 @@ function(resolveImportedLib lib linkLibs linkFlags)
     
     set(${linkLibs} "${linkLibs1}" PARENT_SCOPE)
     set(${linkFlags} "${linkFlags1}" PARENT_SCOPE)
+    set(${incDirs} "${incDirs1}" PARENT_SCOPE)
+    set(${cxxFlags} "${cxxFlags1}" PARENT_SCOPE)
 endfunction()
+
+
+# if we already have cmake-exports for this project:
+# sets the vars 
+# ${PROJECT_NAME}_INCLUDE_DIRS, ${PROJECT_NAME}_CXX_FLAGS, ${PROJECT_NAME}_LINKER_FLAGS ${PROJECT_NAME}_LIBRARIES
+# so that compatibility layer is provided automatically.
+# ${PROJECT_NAME}_LIBRARY_DIRS is no longer used, ${PROJECT_NAME}_LIBRARIES is fully resolved.
+if(${PROVIDES_EXPORTED_TARGETS})
+    #  imported targets should be namespaced, so define namespaced alias
+    add_library(ChimeraTK::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
+
+    resolveImportedLib(ChimeraTK::${PROJECT_NAME} linkLibs linkFlags incDirs cxxFlags)
+
+    message("old libset: ${${PROJECT_NAME}_LIBRARIES}")
+    message("old linkflags: ${${PROJECT_NAME}_LINKER_FLAGS}")
+    message("old cxxflags: ${${PROJECT_NAME}_CXX_FLAGS}")
+    message("old incDirs: ${${PROJECT_NAME}_INCLUDE_DIRS}")
+    set(${PROJECT_NAME}_INCLUDE_DIRS "${incDirs}" )
+    set(${PROJECT_NAME}_LIBRARIES "${linkLibs}" )
+    set(${PROJECT_NAME}_CXX_FLAGS "${cxxFlags}" )
+    set(${PROJECT_NAME}_LINKER_FLAGS "${linkFlags}" )
+    message("new libset: ${${PROJECT_NAME}_LIBRARIES}")
+    message("new linkflags: ${${PROJECT_NAME}_LINKER_FLAGS}")
+    message("new cxxflags: ${${PROJECT_NAME}_CXX_FLAGS}")
+    message("new incDirs: ${${PROJECT_NAME}_INCLUDE_DIRS}")
+endif()
 
 # create variables for standard makefiles and pkgconfig
 set(${PROJECT_NAME}_CXX_FLAGS_MAKEFILE "${${PROJECT_NAME}_CXX_FLAGS}")
@@ -78,7 +130,7 @@ endforeach()
 message("${PROJECT_NAME}: linker flags for makefile, before recursive lib resolution=|${${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE}|")
 string(REPLACE " " ";" LIST "${PROJECT_NAME} ${${PROJECT_NAME}_LIBRARIES}")
 foreach(LIBRARY ${LIST})
-    resolveImportedLib(${LIBRARY} linkLibs linkFlags)
+    resolveImportedLib(${LIBRARY} linkLibs linkFlags incDirs cxxFlags)
     #message("for lib ${LIBRARY}: add linkLibs=|${linkLibs}| linkFlags=|${linkFlags}|")
     string(APPEND ${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE " ${linkLibs}")
     string(APPEND ${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE " ${linkFlags}")
@@ -100,6 +152,7 @@ if(TARGET ${PROJECT_NAME})
 else()
   set(${PROJECT_NAME}_HAS_LIBRARY 0)
 endif()
+
 
 # we have nested @-statements, so we have to parse twice:
 
@@ -168,3 +221,4 @@ install(FILES
         DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}"
         COMPONENT dev
 )
+
