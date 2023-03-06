@@ -13,6 +13,12 @@
 #   DOOCS_LIBRARIES    : list of libraries to link against
 #   DOOCS_CXX_FLAGS    : Flags needed to be passed to the c++ compiler
 #   DOOCS_LINK_FLAGS   : Flags needed to be passed to the linker
+#   DOOCS_DIR          : doocs library dir
+#
+# Also (and preferred for usage), an imported target DOOCS::api is returned.
+# We support calling find_package(DOOCS COMPONENTS <cs>) several times, for adding in different components <cs>.
+# The imported targets are named DOOCS::<c>  for component <c>.
+# DOOCS_LIBRARIES will be updated to include all requested components as imported targets.
 #
 # @author Martin Hierholzer, DESY
 #
@@ -32,106 +38,115 @@
 
 SET(DOOCS_FOUND 0)
 
-list(PREPEND DOOCS_FIND_COMPONENTS doocsapi)
-
-if (";${DOOCS_FIND_COMPONENTS};" MATCHES ";zmq;")
-  list(APPEND DOOCS_FIND_COMPONENTS doocsdzmq)
-  list(REMOVE_ITEM DOOCS_FIND_COMPONENTS zmq)
-endif()
-
-if (";${DOOCS_FIND_COMPONENTS};" MATCHES ";dapi;")
-  list(APPEND DOOCS_FIND_COMPONENTS doocsdapi)
-  list(REMOVE_ITEM DOOCS_FIND_COMPONENTS dapi)
-endif()
-
-if (";${DOOCS_FIND_COMPONENTS};" MATCHES ";server;")
-  list(APPEND DOOCS_FIND_COMPONENTS serverlib)
-  list(REMOVE_ITEM DOOCS_FIND_COMPONENTS server)
-endif()
-
-set(DOOCS_FIND_COMPONENTS_DDAQ false)
-if (";${DOOCS_FIND_COMPONENTS};" MATCHES ";ddaq;")
-  # This library seems not yet to come with a pkg-config module
-  list(REMOVE_ITEM DOOCS_FIND_COMPONENTS ddaq)
-  set(DOOCS_FIND_COMPONENTS_DDAQ true)
-endif()
-
-if (";${DOOCS_FIND_COMPONENTS};" MATCHES ";daqreader;")
-  list(APPEND DOOCS_FIND_COMPONENTS daqreaderlib)
-  list(REMOVE_ITEM DOOCS_FIND_COMPONENTS daqreader)
-endif()
-
-# For newer cmake versions, the following foreach() can be replaced by this:
-# list(TRANSFORM DOOCS_FIND_COMPONENTS PREPEND "doocs-")
-foreach(component ${DOOCS_FIND_COMPONENTS})
-  list(APPEND DOOCS_FIND_COMPONENTS_TRANSFORMED "doocs-${component}")
-endforeach()
-set(DOOCS_FIND_COMPONENTS ${DOOCS_FIND_COMPONENTS_TRANSFORMED})
-
-include(FindPkgConfig)
-
 if(DEFINED DOOCS_DIR)
-  set(ENV{PKG_CONFIG_PATH} $ENV{PKG_CONFIG_PATH}:${DOOCS_DIR}/pkgconfig)
+    # TODO - please do only once
+    set(ENV{PKG_CONFIG_PATH} $ENV{PKG_CONFIG_PATH}:${DOOCS_DIR}/pkgconfig)
 endif()
 set(ENV{PKG_CONFIG_PATH} $ENV{PKG_CONFIG_PATH}:/export/doocs/lib/pkgconfig)
 message("Using PKG_CONFIG_PATH=$ENV{PKG_CONFIG_PATH}")
 
-# WORK AROUND FOR BROKEN DOOCS PKG CONFIG FILES: Search for libgul14 which is required by DOOCS libraries
-list(APPEND DOOCS_FIND_COMPONENTS libgul14)
-# END OF WORK AROUND
+# We add the always - required API component 
+if (NOT (";${DOOCS_FIND_COMPONENTS};" MATCHES ";api;"))
+    list(PREPEND DOOCS_FIND_COMPONENTS "api")
+endif()
+
+function(expandDoocsComponentName longName shortName)
+    if (";${shortName};" MATCHES ";api;")
+        set(${longName} "doocs-doocsapi" PARENT_SCOPE)
+    endif()
+    if (";${shortName};" MATCHES ";zmq;")
+        set(${longName} "doocs-doocsdzmq" PARENT_SCOPE)
+    endif()
+    if (";${shortName};" MATCHES ";dapi;")
+        set(${longName} "doocs-doocsdapi" PARENT_SCOPE)
+    endif()
+    if (";${shortName};" MATCHES ";server;")
+        set(${longName} "doocs-serverlib" PARENT_SCOPE)
+    endif()
+    if (";${shortName};" MATCHES ";ddaq;")
+        set(${longName} "doocs-doocsddaq" PARENT_SCOPE)
+    endif()
+    if (";${shortName};" MATCHES ";daqreader;")
+        set(${longName} "doocs-daqreaderlib" PARENT_SCOPE)
+    endif()
+    if (";${shortName};" MATCHES ";daqsndlib;")
+        set(${longName} "doocs-daqsndlib" PARENT_SCOPE)
+    endif()
+endfunction()
 
 
-# IMPORTED_TARGET means also imported target PkgConfig::DOOCS will be defined. GLOBAL so we can alias.
-#message("FindDOOCS called with DOOCS_FIND_COMPONENTS=${DOOCS_FIND_COMPONENTS} ")
-pkg_check_modules(DOOCS REQUIRED IMPORTED_TARGET GLOBAL ${DOOCS_FIND_COMPONENTS})
+include(FindPkgConfig)
 
-string(REPLACE ";" " " DOOCS_CFLAGS "${DOOCS_CFLAGS}")
-string(REPLACE ";" " " DOOCS_LDFLAGS "${DOOCS_LDFLAGS}")
+# We expect that find_package will be called more than once, with different components.
+# Since imported targets cannot be replaced, the only clean solution is to define an imported component per pkgconfig component.
+# pkg_check_modules can be called more than once, with different components.
+# We define DOOCS_FIND_COMPONENTS_ALL to collect all asked-for components
+foreach(component ${DOOCS_FIND_COMPONENTS})
+    expandDoocsComponentName(componentLongName ${component})
+    if (NOT ";${DOOCS_FIND_COMPONENTS_ALL};" MATCHES ";${componentLongName};")
+        list(APPEND DOOCS_FIND_COMPONENTS_ALL ${componentLongName})
+        # IMPORTED_TARGET means also imported target PkgConfig::DOOCS will be defined. GLOBAL so we can alias.
+        pkg_check_modules(DOOCS_${component} REQUIRED IMPORTED_TARGET GLOBAL ${componentLongName})
+        if (DOOCS_${component}_FOUND)
+            message("imported target is PkgConfig::DOOCS_${component}. Defining alias DOOCS::${component}")
+            add_library(DOOCS::${component} ALIAS PkgConfig::DOOCS_${component})
+            set(DOOCS_LIBRARIES ${DOOCS_LIBRARIES} "DOOCS::${component}")
+        else()
+            message(FATAL_ERROR "DOOCS component ${component} not found!")
+        endif()
+    endif()
+endforeach()
+message("complete list of searched components: ${DOOCS_FIND_COMPONENTS_ALL}")
+
+# note, pkg_check_modules output variables <prefix>_VERSION and <prefix>_LIBDIR are different, 
+# depending on length of given module list!
+set(DOOCS_DIR "${DOOCS_api_LIBDIR}")
+set(DOOCS_VERSION "${DOOCS_api_VERSION}")
+
 
 # thread libraries are required by DOOCS but seem not to be added through pkgconfig...
 find_package(Threads REQUIRED)
 
-set(DOOCS_DIR "${DOOCS_doocs-doocsapi_LIBDIR}")
-set(DOOCS_VERSION "${DOOCS_doocs-doocsapi_VERSION}")
-#message("pkg_check_modules returned: libdir=|${DOOCS_doocs-doocsapi_LIBDIR}| version=|${DOOCS_doocs-doocsapi_VERSION}|")
-set(DOOCS_CXX_FLAGS ${DOOCS_CFLAGS})
-set(DOOCS_LIBRARIES ${DOOCS_LDFLAGS} ${CMAKE_THREAD_LIBS_INIT} tinemt)
-set(DOOCS_LINKER_FLAGS "-Wl,--no-as-needed")
-set(DOOCS_LINK_FLAGS ${DOOCS_LINKER_FLAGS})
+# TODO - rethink about the compatibility layer. Maybe we can completely move to imported targets and cick everything else out.
+# However, this would only work if pkgconfig config target does resolution of imported target again.
 
-set(COMPONENT_DIRS "")
-if(DOOCS_FIND_COMPONENTS_DDAQ)
-  message("Searching for libDOOCSddaq.so")
-  FIND_PATH(DOOCS_DIR_ddaq libDOOCSddaq.so
-    ${DOOCS_DIR}
-  )
-  set(DOOCS_LIBRARIES ${DOOCS_LIBRARIES} DOOCSddaq timinginfo daqevstat DAQFSM TTF2XML xerces-c BM TTF2evutl DAQsvrutil)
-  set(COMPONENT_DIRS ${COMPONENT_DIRS} DOOCS_DIR_ddaq)
-endif()
+# tweaks on old-style vars ... if this bothers you, please move to imported target
+# one problem is, we don't want imported target on shell-script or pkgconfig output, so better not put them in here.
+# here we should gather from all components
+string(REPLACE ";" " " DOOCS_CFLAGS "${DOOCS_api_CFLAGS} ${DOOCS_zmq_CFLAGS} ${DOOCS_server_CFLAGS} ${DOOCS_ddaq_CFLAGS}")
+string(REPLACE ";" " " DOOCS_LDFLAGS "${DOOCS_api_LDFLAGS} ${DOOCS_zmq_LDFLAGS} ${DOOCS_server_LDFLAGS} ${DOOCS_ddaq_LDFLAGS}")
+set(DOOCS_CXX_FLAGS ${DOOCS_CFLAGS})
+set(DOOCS_LINKER_FLAGS "${DOOCS_LDFLAGS} -Wl,--no-as-needed")
+set(DOOCS_LINK_FLAGS ${DOOCS_LINKER_FLAGS})
+# this does not go to pkgconfig / shell-script
+set(DOOCS_LIBRARIES ${DOOCS_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} tinemt)
 
 # use a macro provided by CMake to check if all the listed arguments are valid and set DOOCS_FOUND accordingly
 include(FindPackageHandleStandardArgs)
-FIND_PACKAGE_HANDLE_STANDARD_ARGS(DOOCS REQUIRED_VARS DOOCS_DIR ${COMPONENT_DIRS} VERSION_VAR DOOCS_VERSION )
+message("FIND_PACKAGE_HANDLE_STANDARD_ARGS")
+FIND_PACKAGE_HANDLE_STANDARD_ARGS(DOOCS REQUIRED_VARS DOOCS_DIR VERSION_VAR DOOCS_VERSION )
 
 if (DOOCS_FOUND)
-  # imported target
-  message("imported target is PkgConfig::DOOCS. Defining alias ChimeraTK::DOOCS")
-  add_library(ChimeraTK::DOOCS ALIAS PkgConfig::DOOCS)
-  get_target_property(v PkgConfig::DOOCS INTERFACE_INCLUDE_DIRECTORIES)
+    set(importedTarget DOOCS::api)
+    # TODO - do we also touch other components?
+  get_target_property(v ${importedTarget} INTERFACE_INCLUDE_DIRECTORIES)
   message("  include dirs: ${v}")
-  get_target_property(v PkgConfig::DOOCS INTERFACE_COMPILE_OPTIONS)
+  get_target_property(v ${importedTarget} INTERFACE_COMPILE_OPTIONS)
   message("  compile options: ${v}")
-  get_target_property(v PkgConfig::DOOCS INTERFACE_LINK_OPTIONS)
+  get_target_property(v ${importedTarget} INTERFACE_LINK_OPTIONS)
   message("  link options: ${v}")
-  get_target_property(doocsLinkLibs PkgConfig::DOOCS INTERFACE_LINK_LIBRARIES)
   
-  set_target_properties(PkgConfig::DOOCS PROPERTIES INTERFACE_LINK_LIBRARIES "${doocsLinkLibs};Threads::Threads" )
-  get_target_property(doocsLinkLibs PkgConfig::DOOCS INTERFACE_LINK_LIBRARIES)
-  message("  updated link libs: ${doocsLinkLibs}")
+  # add Threads lib only if not yet in
+  get_target_property(doocsLinkLibs ${importedTarget} INTERFACE_LINK_LIBRARIES)
+  if (NOT (";${doocsLinkLibs};" MATCHES ";Threads::Threads;"))
+    set_target_properties(PkgConfig::DOOCS_api PROPERTIES INTERFACE_LINK_LIBRARIES "${doocsLinkLibs};Threads::Threads" )
+  endif()
+  get_target_property(doocsLinkLibs ${importedTarget} INTERFACE_LINK_LIBRARIES)
+  message("  link libs: ${doocsLinkLibs}")
   
   # TODO : discuss whether --no-as-needed flag is acutually required, it's default behavior anyway and I don't
   # see why bother introduce it here, if it was not in doocs pkg-config.
-  # Also, is tinemt needed?
-  # The other things are already fixed (gul14, ddaq libs)
-  # Further, Martin K suggests to rename it PkgConfig:DOOCS -> ChimeraTK::DOOCS since we modified it
+  # discussion result: if final test succeeds without --no-as-needed, we leave it out.
+  # Further, Martin K suggests to rename it PkgConfig:DOOCS -> ChimeraTK::DOOCS since we modified it.
+  # But Martin H is against it, since it might be misleading - after loading ChimeraTK::DOOCS, there is no way back to load also PkgConfig::DOOCS.
 endif()
