@@ -38,11 +38,16 @@
 
 SET(DOOCS_FOUND 0)
 
+function (addToPkgConfPath newPath)
+    if (NOT (":$ENV{PKG_CONFIG_PATH}:" MATCHES ":${newPath}:"))
+        set(ENV{PKG_CONFIG_PATH} $ENV{PKG_CONFIG_PATH}:${newPath})
+    endif()
+endfunction()
+
 if(DEFINED DOOCS_DIR)
-    # TODO - please do only once
-    set(ENV{PKG_CONFIG_PATH} $ENV{PKG_CONFIG_PATH}:${DOOCS_DIR}/pkgconfig)
+    addToPkgConfPath(${DOOCS_DIR}/pkgconfig)
 endif()
-set(ENV{PKG_CONFIG_PATH} $ENV{PKG_CONFIG_PATH}:/export/doocs/lib/pkgconfig)
+addToPkgConfPath(/export/doocs/lib/pkgconfig)
 message("Using PKG_CONFIG_PATH=$ENV{PKG_CONFIG_PATH}")
 
 # We add the always - required API component 
