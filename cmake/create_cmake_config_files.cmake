@@ -27,6 +27,39 @@
 #
 #######################################################################################################################
 
+# for lib, which might be lib File or linker flag or imported target, 
+# puts recursively resolved library list into ${linkLibs}, which will contain a library file list
+# and recursively resolve link flags into ${linkFlags}
+function(resolveImportedLib lib linkLibs linkFlags)
+    set(linkLibs1 "")
+    set(linkFlags1 "")
+    if(lib MATCHES "/")         # library name contains slashes: link against the a file path name
+        string(APPEND linkLibs1 " ${lib}")
+    elseif(lib MATCHES "^[ \t]*-l")   # library name does not contain slashes but already the -l option: directly quote it
+        string(APPEND linkLibs1 " ${lib}")
+    elseif(lib MATCHES "::")    # library name is an imported target - we need to resolve it for Makefiles
+        get_target_property(_libraryType ${lib} TYPE)
+        if (NOT ${_libraryType} MATCHES INTERFACE_LIBRARY)            
+            get_property(lib_loc TARGET ${lib} PROPERTY LOCATION)
+            #message("imported target ${lib} is actual library. location=${lib_loc}")
+            string(APPEND linkLibs1 " ${lib_loc}")
+        else()
+            get_target_property(_linkLibs ${lib} INTERFACE_LINK_LIBRARIES)
+            #message("imported target ${lib} is interface, recursively go over its interface requirements ${_linkLibs}")
+            foreach(_lib ${_linkLibs})
+                resolveImportedLib(${_lib} linkLibs2 linkFlags2)
+                string(APPEND linkLibs1 " ${linkLibs2}")
+                string(APPEND linkFlags1 " ${linkFlags2}")
+            endforeach()
+        endif()
+    else()                          # link against library with -l option
+        string(APPEND linkFlags1 " -l${lib}")
+    endif()
+    
+    set(${linkLibs} "${linkLibs1}" PARENT_SCOPE)
+    set(${linkFlags} "${linkFlags1}" PARENT_SCOPE)
+endfunction()
+
 # create variables for standard makefiles and pkgconfig
 set(${PROJECT_NAME}_CXX_FLAGS_MAKEFILE "${${PROJECT_NAME}_CXX_FLAGS}")
 
@@ -42,25 +75,15 @@ foreach(LIBRARY_DIR ${LIST})
   set(${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE "${${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE} -L${LIBRARY_DIR}")
 endforeach()
 
+message("${PROJECT_NAME}: linker flags for makefile, before recursive lib resolution=|${${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE}|")
 string(REPLACE " " ";" LIST "${PROJECT_NAME} ${${PROJECT_NAME}_LIBRARIES}")
 foreach(LIBRARY ${LIST})
-  if(LIBRARY MATCHES "/")         # library name contains slashes: link against the a file path name
-    set(${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE "${${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE} ${LIBRARY}")
-  elseif(LIBRARY MATCHES "^-l")   # library name does not contain slashes but already the -l option: directly quote it
-    set(${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE "${${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE} ${LIBRARY}")
-  elseif(LIBRARY MATCHES "::")  # library name is an exported target - we need to resolve it for Makefiles
-    get_target_property(libraryType ${LIBRARY} TYPE)
-    get_target_property(linkLibs ${LIBRARY} INTERFACE_LINK_LIBRARIES)
-    # TODO - we should have recursive resolution function
-    message("try finding lib location of ${LIBRARY}  t${libraryType} l|${linkLibs}|")
-    if (NOT ${libraryType} MATCHES INTERFACE_LIBRARY)
-        get_property(lib_loc TARGET ${LIBRARY} PROPERTY LOCATION)
-        string(APPEND ${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE " ${lib_loc}")
-    endif()
-  else()                          # link against library with -l option
-    set(${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE "${${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE} -l${LIBRARY}")
-  endif()
+    resolveImportedLib(${LIBRARY} linkLibs linkFlags)
+    #message("for lib ${LIBRARY}: add linkLibs=|${linkLibs}| linkFlags=|${linkFlags}|")
+    string(APPEND ${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE " ${linkLibs}")
+    string(APPEND ${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE " ${linkFlags}")
 endforeach()
+message("${PROJECT_NAME}: linker flags for makefile=|${${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE}|")
 
 set(${PROJECT_NAME}_PUBLIC_DEPENDENCIES_L "")
 foreach(DEPENDENCY ${${PROJECT_NAME}_PUBLIC_DEPENDENCIES})
