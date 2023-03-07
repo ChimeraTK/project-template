@@ -27,6 +27,21 @@
 #
 #######################################################################################################################
 
+# append to (space-separated!) list, but only if not yet existing
+macro(appendToList list var)
+    if (NOT (" ${appendToList} " MATCHES " ${var} ")
+        string(APPEND ${list} "${{var}}")
+    endif()
+endmacro()
+
+macro(handleGeneratorExprs var)
+    # Unfortunately, I do not see a solution for correct generator expression handling by cmake. So instead, do some simple replacements.
+    # $<INSTALL_INTERFACE:path> defines path relative to install location.
+    string(REGEX REPLACE "\\$<INSTALL_INTERFACE:([^ ;]*)>" "${CMAKE_INSTALL_PREFIX}/\\1" ${var} "${${var}}")
+    # remove any other generator expression
+    string(REGEX REPLACE "\\$<.*>" "" ${var} "${${var}}")
+endmacro()
+
 # for lib, which might be lib File or linker flag or imported target, 
 # puts recursively resolved library list into ${linkLibs}, which will contain a library file list
 # and recursively resolve link flags into ${linkFlags}
@@ -57,7 +72,10 @@ function(resolveImportedLib lib linkLibs linkFlags incDirs cxxFlags)
             message("imported target ${lib} is interface, recursively go over its interface requirements ${_linkLibs}")
             foreach(_lib ${_linkLibs})
                 resolveImportedLib(${_lib} linkLibs2 linkFlags2 incDirs2 cxxFlags2)
-                # TODO - we need to evaluate generator expressions somehow
+                handleGeneratorExprs(linkLibs2)
+                handleGeneratorExprs(linkFlags2)
+                handleGeneratorExprs(incDirs2)
+                handleGeneratorExprs(cxxFlags2)                
                 string(APPEND linkLibs1 " ${linkLibs2}")
                 string(APPEND linkFlags1 " ${linkFlags2}")
                 string(APPEND incDirs1 " ${incDirs2}")
@@ -67,12 +85,14 @@ function(resolveImportedLib lib linkLibs linkFlags incDirs cxxFlags)
         get_target_property(_incDirs ${lib} INTERFACE_INCLUDE_DIRECTORIES)
         if (NOT "${_incDirs}" MATCHES "-NOTFOUND")
             foreach(INCLUDE_DIR ${_incDirs})
+                handleGeneratorExprs(INCLUDE_DIR)
                 string(APPEND incDirs1 " ${INCLUDE_DIR}")
             endforeach()
         endif()
         get_target_property(_cxxFlags ${lib} INTERFACE_COMPILE_OPTIONS)
             if (NOT "${_cxxFlags}" MATCHES "-NOTFOUND")
             foreach(cxxFlag ${_cxxFlags})
+                handleGeneratorExprs(cxxFlag)
                 string(APPEND cxxFlags1 " ${cxxFlag}")
             endforeach()
         endif()
@@ -182,6 +202,7 @@ install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}-config DESTINATION 
 # install configuration file for pkgconfig
 install(FILES "${PROJECT_BINARY_DIR}/${PROJECT_NAME}.pc" DESTINATION share/pkgconfig COMPONENT dev)
 
+
 if(${PROVIDES_EXPORTED_TARGETS})
     #  imported targets should be namespaced, so define namespaced alias
     add_library(ChimeraTK::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
@@ -221,4 +242,5 @@ install(FILES
         DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}"
         COMPONENT dev
 )
+
 
