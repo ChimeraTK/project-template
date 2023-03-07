@@ -67,11 +67,11 @@ function(resolveImportedLib lib linkLibs linkFlags incDirs cxxFlags)
                 # We cannot find target library location of this project via target properties at this point.
                 # Therefore, we simply assume that by convention, all our libs are installed into ${CMAKE_INSTALL_PREFIX}/lib.
                 # Exceptions are allowed of a -L<libdir> is already in linker flags.
-                appendToList(linkFlags1 "-l${PROJECT_NAME}")
                 appendToList(linkFlags1 "-L${CMAKE_INSTALL_PREFIX}/lib")
+                appendToList(linkFlags1 "-l${PROJECT_NAME}")
             else()
                 get_property(lib_loc TARGET ${lib} PROPERTY LOCATION)
-                message("imported target ${lib} is actual library. location=${lib_loc}")
+                #message("imported target ${lib} is actual library. location=${lib_loc}")
                 appendToList(linkLibs1 "${lib_loc}")
             endif()
         endif()
@@ -135,18 +135,21 @@ if(${PROVIDES_EXPORTED_TARGETS})
 
     resolveImportedLib(ChimeraTK::${PROJECT_NAME} linkLibs linkFlags incDirs cxxFlags)
 
-    message("old libset: ${${PROJECT_NAME}_LIBRARIES}")
-    message("old linkflags: ${${PROJECT_NAME}_LINKER_FLAGS}")
-    message("old cxxflags: ${${PROJECT_NAME}_CXX_FLAGS}")
-    message("old incDirs: ${${PROJECT_NAME}_INCLUDE_DIRS}")
+    # printing results will help resolve problems with auto-generated compatibility layer
+    message("explicitly provided compatibility layer,")
+    message("  old libset: ${${PROJECT_NAME}_LIBRARIES}")
+    message("  old linkflags: ${${PROJECT_NAME}_LINKER_FLAGS}")
+    message("  old cxxflags: ${${PROJECT_NAME}_CXX_FLAGS}")
+    message("  old incDirs: ${${PROJECT_NAME}_INCLUDE_DIRS}")
     set(${PROJECT_NAME}_INCLUDE_DIRS "${incDirs}" )
     set(${PROJECT_NAME}_LIBRARIES "${linkLibs}" )
     set(${PROJECT_NAME}_CXX_FLAGS "${cxxFlags}" )
     set(${PROJECT_NAME}_LINKER_FLAGS "${linkFlags}" )
-    message("new libset: ${${PROJECT_NAME}_LIBRARIES}")
-    message("new linkflags: ${${PROJECT_NAME}_LINKER_FLAGS}")
-    message("new cxxflags: ${${PROJECT_NAME}_CXX_FLAGS}")
-    message("new incDirs: ${${PROJECT_NAME}_INCLUDE_DIRS}")
+    message("automatically generated compatibility layer from cmake-exports,")
+    message("  new libset: ${${PROJECT_NAME}_LIBRARIES}")
+    message("  new linkflags: ${${PROJECT_NAME}_LINKER_FLAGS}")
+    message("  new cxxflags: ${${PROJECT_NAME}_CXX_FLAGS}")
+    message("  new incDirs: ${${PROJECT_NAME}_INCLUDE_DIRS}")
 endif()
 
 # create variables for standard makefiles and pkgconfig
@@ -157,27 +160,29 @@ foreach(INCLUDE_DIR ${LIST})
   set(${PROJECT_NAME}_CXX_FLAGS_MAKEFILE "${${PROJECT_NAME}_CXX_FLAGS_MAKEFILE} -I${INCLUDE_DIR}")
 endforeach()
 
+# some old code still might call linker flags _LINK_FLAGS, also include that
 set(${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE "${${PROJECT_NAME}_LINKER_FLAGS} ${${PROJECT_NAME}_LINK_FLAGS}")
 
 string(REPLACE " " ";" LIST "${${PROJECT_NAME}_LIBRARY_DIRS}")
 foreach(LIBRARY_DIR ${LIST})
-  set(${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE "${${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE} -L${LIBRARY_DIR}")
+  appendToList(${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE "-L${LIBRARY_DIR}")
 endforeach()
 
-if(NOT ${PROVIDES_EXPORTED_TARGETS})
-    # resolution of linker flags is only necessary, if dependencies contain imported targets, but this project does not yet export its target,
-    # otherwise, linker resolution was already done above
-    message("${PROJECT_NAME}: linker flags for makefile, before recursive lib resolution=|${${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE}|")
+#message("${PROJECT_NAME}: linker flags for makefile, before recursive lib resolution=|${${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE}|")
+if(${PROVIDES_EXPORTED_TARGETS})
+    # libraries have already been resolved above, add them to linker flags
+    appendToList(${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE "${${PROJECT_NAME}_LIBRARIES}")
+else()
+    # recursive resolution of linker flags is necessary, since dependencies could contain imported targets
     string(REPLACE " " ";" LIST "${PROJECT_NAME} ${${PROJECT_NAME}_LIBRARIES}")
-    message("LIB LIST=${LIST}")
     foreach(LIBRARY ${LIST})
         resolveImportedLib(${LIBRARY} linkLibs linkFlags incDirs cxxFlags)
-        message("for lib ${LIBRARY}: add linkLibs=|${linkLibs}| linkFlags=|${linkFlags}|")
-        string(APPEND ${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE " ${linkLibs}")
-        string(APPEND ${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE " ${linkFlags}")
+        #message("for lib ${LIBRARY}: add linkLibs=|${linkLibs}| linkFlags=|${linkFlags}|")
+        appendToList(${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE "${linkLibs}")
+        appendToList(${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE "${linkFlags}")
     endforeach()
-    message("${PROJECT_NAME}: linker flags for makefile=|${${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE}|")
 endif()
+#message("${PROJECT_NAME}: linker flags for makefile=|${${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE}|")
 
 set(${PROJECT_NAME}_PUBLIC_DEPENDENCIES_L "")
 foreach(DEPENDENCY ${${PROJECT_NAME}_PUBLIC_DEPENDENCIES})
