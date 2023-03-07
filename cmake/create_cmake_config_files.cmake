@@ -44,6 +44,8 @@ macro(appendToList list arg)
     string(FIND " ${${list}} " " ${appendToList_arg} " appendToList_pos)
     if (${appendToList_pos} EQUAL -1)
         string(APPEND ${list} " ${appendToList_arg}")
+        # strip leading spaces since they might cause problems
+        string(REGEX REPLACE "^[ \t]+" "" ${list} "${${list}}")
     endif()
 endmacro()
 
