@@ -27,19 +27,22 @@
 #
 #######################################################################################################################
 
-# append to (space-separated!) list, but only if not yet existing
-macro(appendToList list var)
-    if (NOT (" ${appendToList} " MATCHES " ${var} ")
-        string(APPEND ${list} "${{var}}")
-    endif()
-endmacro()
-
 macro(handleGeneratorExprs var)
     # Unfortunately, I do not see a solution for correct generator expression handling by cmake. So instead, do some simple replacements.
     # $<INSTALL_INTERFACE:path> defines path relative to install location.
     string(REGEX REPLACE "\\$<INSTALL_INTERFACE:([^ ;]*)>" "${CMAKE_INSTALL_PREFIX}/\\1" ${var} "${${var}}")
     # remove any other generator expression
     string(REGEX REPLACE "\\$<.*>" "" ${var} "${${var}}")
+endmacro()
+
+# append to (space-separated!) list, but only if not yet existing
+macro(appendToList list arg)
+    set(appendToList_arg "${arg}")
+    handleGeneratorExprs(appendToList_arg)
+    string(FIND " ${${list}} " " ${appendToList_arg} " appendToList_pos)
+    if (${appendToList_pos} EQUAL -1)
+        string(APPEND ${list} " ${appendToList_arg}")
+    endif()
 endmacro()
 
 # for lib, which might be lib File or linker flag or imported target, 
@@ -51,20 +54,26 @@ function(resolveImportedLib lib linkLibs linkFlags incDirs cxxFlags)
     set(incDirs1 "")
     set(cxxFlags1 "")
     if(lib MATCHES "/")         # library name contains slashes: link against the a file path name
-        string(APPEND linkLibs1 " ${lib}")
+        appendToList(linkLibs1 "${lib}")
     elseif(lib MATCHES "^[ \t]*-l")   # library name does not contain slashes but already the -l option: directly quote it
-        string(APPEND linkLibs1 " ${lib}")
+        appendToList(linkLibs1 "${lib}")
     elseif(lib MATCHES "::")    # library name is an imported target - we need to resolve it for Makefiles
         get_target_property(_libraryType ${lib} TYPE)
         if (${_libraryType} MATCHES "-NOTFOUND")
             message(FATAL_ERROR "dependency ${lib} was not found!")
         endif()
         if ((${_libraryType} MATCHES SHARED_LIBRARY) OR (${_libraryType} MATCHES STATIC_LIBRARY))
-            # we cannot refer to ourselves as dependency -> leave out
-            if(NOT (";${lib};" MATCHES ";.*::${PROJECT_NAME};"))
+            if(";${lib};" MATCHES ";.*::${PROJECT_NAME};")
+                # we cannot find target library location of this project via cmake at this point
+                # TODO instead, put destination lib dir as -L and -l<libname>
+                # for dir, either need a best guess (${CMAKE_INSTALL_PREFIX}/lib) or rely on provided ${PROJECT_NAME}_LIBRARY_DIRS
+                appendToList(linkFlags1 "-l${PROJECT_NAME}")
+                # this is a guess ...
+                appendToList(linkFlags1 "-L${CMAKE_INSTALL_PREFIX}/lib")
+            else()
                 get_property(lib_loc TARGET ${lib} PROPERTY LOCATION)
                 message("imported target ${lib} is actual library. location=${lib_loc}")
-                string(APPEND linkLibs1 " ${lib_loc}")
+                appendToList(linkLibs1 "${lib_loc}")
             endif()
         endif()
         get_target_property(_linkLibs ${lib} INTERFACE_LINK_LIBRARIES)
@@ -72,32 +81,33 @@ function(resolveImportedLib lib linkLibs linkFlags incDirs cxxFlags)
             message("imported target ${lib} is interface, recursively go over its interface requirements ${_linkLibs}")
             foreach(_lib ${_linkLibs})
                 resolveImportedLib(${_lib} linkLibs2 linkFlags2 incDirs2 cxxFlags2)
-                handleGeneratorExprs(linkLibs2)
-                handleGeneratorExprs(linkFlags2)
-                handleGeneratorExprs(incDirs2)
-                handleGeneratorExprs(cxxFlags2)                
-                string(APPEND linkLibs1 " ${linkLibs2}")
-                string(APPEND linkFlags1 " ${linkFlags2}")
-                string(APPEND incDirs1 " ${incDirs2}")
-                string(APPEND cxxFlags1 " ${cxxFlags2}")
+                appendToList(linkLibs1 "${linkLibs2}")
+                appendToList(linkFlags1 "${linkFlags2}")
+                appendToList(incDirs1 "${incDirs2}")
+                appendToList(cxxFlags1 "${cxxFlags2}")
             endforeach()
         endif()
         get_target_property(_incDirs ${lib} INTERFACE_INCLUDE_DIRECTORIES)
         if (NOT "${_incDirs}" MATCHES "-NOTFOUND")
             foreach(INCLUDE_DIR ${_incDirs})
-                handleGeneratorExprs(INCLUDE_DIR)
-                string(APPEND incDirs1 " ${INCLUDE_DIR}")
+                appendToList(incDirs1 "${INCLUDE_DIR}")
             endforeach()
         endif()
         get_target_property(_cxxFlags ${lib} INTERFACE_COMPILE_OPTIONS)
-            if (NOT "${_cxxFlags}" MATCHES "-NOTFOUND")
-            foreach(cxxFlag ${_cxxFlags})
-                handleGeneratorExprs(cxxFlag)
-                string(APPEND cxxFlags1 " ${cxxFlag}")
+        if (NOT "${_cxxFlags}" MATCHES "-NOTFOUND")
+            foreach(flag ${_cxxFlags})
+                appendToList(cxxFlags1 "${flag}")
             endforeach()
         endif()
+        get_target_property(_linkFlags ${lib} INTERFACE_LINK_OPTIONS)
+        if (NOT "${_linkFlags}" MATCHES "-NOTFOUND")
+            foreach(flag ${_linkFlags})
+                appendToList(linkFlags1 "${flag}")
+            endforeach()
+        endif()
+
     else()                          # link against library with -l option
-        string(APPEND linkFlags1 " -l${lib}")
+        appendToList(linkFlags1 "-l${lib}")
     endif()
     
     set(${linkLibs} "${linkLibs1}" PARENT_SCOPE)
@@ -147,15 +157,20 @@ foreach(LIBRARY_DIR ${LIST})
   set(${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE "${${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE} -L${LIBRARY_DIR}")
 endforeach()
 
-message("${PROJECT_NAME}: linker flags for makefile, before recursive lib resolution=|${${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE}|")
-string(REPLACE " " ";" LIST "${PROJECT_NAME} ${${PROJECT_NAME}_LIBRARIES}")
-foreach(LIBRARY ${LIST})
-    resolveImportedLib(${LIBRARY} linkLibs linkFlags incDirs cxxFlags)
-    #message("for lib ${LIBRARY}: add linkLibs=|${linkLibs}| linkFlags=|${linkFlags}|")
-    string(APPEND ${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE " ${linkLibs}")
-    string(APPEND ${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE " ${linkFlags}")
-endforeach()
-message("${PROJECT_NAME}: linker flags for makefile=|${${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE}|")
+if(NOT ${PROVIDES_EXPORTED_TARGETS})
+    # resolution of linker flags is only necessary, if dependencies contain imported targets, but this project does not yet export its target,
+    # otherwise, linker resolution was already done above
+    message("${PROJECT_NAME}: linker flags for makefile, before recursive lib resolution=|${${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE}|")
+    string(REPLACE " " ";" LIST "${PROJECT_NAME} ${${PROJECT_NAME}_LIBRARIES}")
+    message("LIB LIST=${LIST}")
+    foreach(LIBRARY ${LIST})
+        resolveImportedLib(${LIBRARY} linkLibs linkFlags incDirs cxxFlags)
+        message("for lib ${LIBRARY}: add linkLibs=|${linkLibs}| linkFlags=|${linkFlags}|")
+        string(APPEND ${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE " ${linkLibs}")
+        string(APPEND ${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE " ${linkFlags}")
+    endforeach()
+    message("${PROJECT_NAME}: linker flags for makefile=|${${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE}|")
+endif()
 
 set(${PROJECT_NAME}_PUBLIC_DEPENDENCIES_L "")
 foreach(DEPENDENCY ${${PROJECT_NAME}_PUBLIC_DEPENDENCIES})
