@@ -64,11 +64,10 @@ function(resolveImportedLib lib linkLibs linkFlags incDirs cxxFlags)
         endif()
         if ((${_libraryType} MATCHES SHARED_LIBRARY) OR (${_libraryType} MATCHES STATIC_LIBRARY))
             if(";${lib};" MATCHES ";.*::${PROJECT_NAME};")
-                # we cannot find target library location of this project via cmake at this point
-                # TODO instead, put destination lib dir as -L and -l<libname>
-                # for dir, either need a best guess (${CMAKE_INSTALL_PREFIX}/lib) or rely on provided ${PROJECT_NAME}_LIBRARY_DIRS
+                # We cannot find target library location of this project via target properties at this point.
+                # Therefore, we simply assume that by convention, all our libs are installed into ${CMAKE_INSTALL_PREFIX}/lib.
+                # Exceptions are allowed of a -L<libdir> is already in linker flags.
                 appendToList(linkFlags1 "-l${PROJECT_NAME}")
-                # this is a guess ...
                 appendToList(linkFlags1 "-L${CMAKE_INSTALL_PREFIX}/lib")
             else()
                 get_property(lib_loc TARGET ${lib} PROPERTY LOCATION)
@@ -105,8 +104,16 @@ function(resolveImportedLib lib linkLibs linkFlags incDirs cxxFlags)
                 appendToList(linkFlags1 "${flag}")
             endforeach()
         endif()
+        get_target_property(_linkDirs ${lib} INTERFACE_LINK_DIRECTORES)
+        if (NOT "${_linkDirs}" MATCHES "-NOTFOUND")
+            foreach(flag ${_linkDirs})
+                handleGeneratorExprs(flag)
+                appendToList(linkFlags1 "-L${flag}")
+            endforeach()
+        endif()
 
     else()                          # link against library with -l option
+        handleGeneratorExprs(lib)
         appendToList(linkFlags1 "-l${lib}")
     endif()
     
