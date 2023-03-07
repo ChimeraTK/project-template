@@ -4,23 +4,23 @@
 #
 # By default, only the client API is included. If the component "server" is specified, also the
 # server library will be used. If the component "zmq" is specified, the DOOCSdzmq library will be used as well.
+# Currently support components: api, server, zmq, dapi, ddaq, daqreader, daqsndlib
 #
 # returns:
 #   DOOCS_FOUND        : true or false, depending on whether the package was found
 #   DOOCS_VERSION      : the package version
-#   DOOCS_INCLUDE_DIRS : path to the include directory
-#   DOOCS_LIBRARY_DIRS : path to the library directory
 #   DOOCS_LIBRARIES    : list of libraries to link against
-#   DOOCS_CXX_FLAGS    : Flags needed to be passed to the c++ compiler
-#   DOOCS_LINK_FLAGS   : Flags needed to be passed to the linker
 #   DOOCS_DIR          : doocs library dir
 #
-# Also (and preferred for usage), an imported target DOOCS::api is returned.
-# We support calling find_package(DOOCS COMPONENTS <cs>) several times, for adding in different components <cs>.
-# The imported targets are named DOOCS::<c>  for component <c>.
-# DOOCS_LIBRARIES will be updated to include all requested components as imported targets.
+# Also returns following for compatibility, however imported targets should be preferred for usage:
+#   DOOCS_INCLUDE_DIRS : path to the include directory
+#   DOOCS_LIBRARY_DIRS : path to the library directory
+#   DOOCS_CXX_FLAGS    : Flags needed to be passed to the c++ compiler
+#   DOOCS_LINK_FLAGS   : Flags needed to be passed to the linker
 #
-# @author Martin Hierholzer, DESY
+# For each component <c>, an imported target DOOCS::<c> is returned.
+# We support calling find_package(DOOCS COMPONENTS <cs>) several times, for adding in different components <cs>.
+# DOOCS_LIBRARIES will be updated to include all requested components as imported targets.
 #
 #######################################################################################################################
 
@@ -38,16 +38,19 @@
 
 SET(DOOCS_FOUND 0)
 
-function (addToPkgConfPath newPath)
+# note, helper functions and variables should also be prefixed with DOOCS_, since everything is exported to
+#  project calling find_package(DOOCS)
+
+function (DOOCS_addToPkgConfPath newPath)
     if (NOT (":$ENV{PKG_CONFIG_PATH}:" MATCHES ":${newPath}:"))
         set(ENV{PKG_CONFIG_PATH} $ENV{PKG_CONFIG_PATH}:${newPath})
     endif()
 endfunction()
 
 if(DEFINED DOOCS_DIR)
-    addToPkgConfPath(${DOOCS_DIR}/pkgconfig)
+    DOOCS_addToPkgConfPath(${DOOCS_DIR}/pkgconfig)
 endif()
-addToPkgConfPath(/export/doocs/lib/pkgconfig)
+DOOCS_addToPkgConfPath(/export/doocs/lib/pkgconfig)
 message("FindDOOCS: Using PKG_CONFIG_PATH=$ENV{PKG_CONFIG_PATH}")
 
 # We add the always - required API component 
@@ -109,12 +112,12 @@ foreach(component ${DOOCS_FIND_COMPONENTS})
             endif()
             
             # print some info about targets
-            get_target_property(v ${importedTarget} INTERFACE_INCLUDE_DIRECTORIES)
-            message("  include dirs: ${v}")
-            get_target_property(v ${importedTarget} INTERFACE_COMPILE_OPTIONS)
-            message("  compile options: ${v}")
-            get_target_property(v ${importedTarget} INTERFACE_LINK_OPTIONS)
-            message("  link options: ${v}")
+            get_target_property(doocsIncDirs ${importedTarget} INTERFACE_INCLUDE_DIRECTORIES)
+            message("  include dirs: ${doocsIncDirs}")
+            get_target_property(doocsCxxFlags ${importedTarget} INTERFACE_COMPILE_OPTIONS)
+            message("  compile options: ${doocsCxxFlags}")
+            get_target_property(doocsLinkFlags ${importedTarget} INTERFACE_LINK_OPTIONS)
+            message("  link options: ${doocsLinkFlags}")
             get_target_property(doocsLinkLibs ${importedTarget} INTERFACE_LINK_LIBRARIES)
             message("  link libs: ${doocsLinkLibs}")
         else()
@@ -124,33 +127,39 @@ foreach(component ${DOOCS_FIND_COMPONENTS})
 endforeach()
 message("complete list of searched components: ${DOOCS_FIND_COMPONENTS_ALL}")
 
+# append to list (arg) to space-separated list, only include not yet existing elements
+macro(DOOCS_appendListToList list arg)
+    foreach(DOOCS_appendListToList_arg ${arg})
+        string(FIND " ${${list}} " " ${DOOCS_appendListToList_arg} " DOOCS_appendListToList_pos)
+        if (${DOOCS_appendListToList_pos} EQUAL -1)
+            string(APPEND ${list} " ${DOOCS_appendListToList_arg}")
+        endif()
+    endforeach()
+endmacro()
+
 # note, pkg_check_modules output variables <prefix>_VERSION and <prefix>_LIBDIR are different, 
 # depending on length of given module list!
 set(DOOCS_DIR "${DOOCS_api_LIBDIR}")
 set(DOOCS_VERSION "${DOOCS_api_VERSION}")
 
-
-# TODO - rethink about the compatibility layer. Maybe we can completely move to imported targets and kick everything else out.
-# However, this would only work if pkgconfig config target does resolution of imported target again.
-
-# tweaks on old-style vars ... if this bothers you, please move to imported target
-# one problem is, we don't want imported target on shell-script or pkgconfig output, so better not put them in here.
-# here we should gather from all components
-string(REPLACE ";" " " DOOCS_CFLAGS "${DOOCS_api_CFLAGS} ${DOOCS_zmq_CFLAGS} ${DOOCS_server_CFLAGS} ${DOOCS_ddaq_CFLAGS}")
-string(REPLACE ";" " " DOOCS_LDFLAGS "${DOOCS_api_LDFLAGS} ${DOOCS_zmq_LDFLAGS} ${DOOCS_server_LDFLAGS} ${DOOCS_ddaq_LDFLAGS}")
-set(DOOCS_CXX_FLAGS ${DOOCS_CFLAGS})
-set(DOOCS_LINKER_FLAGS "${DOOCS_LDFLAGS} -Wl,--no-as-needed")
-set(DOOCS_LINK_FLAGS ${DOOCS_LINKER_FLAGS})
-# this does not go to pkgconfig / shell-script
 set(DOOCS_LIBRARIES ${DOOCS_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
+
+# following lines are compatibiliy layer, required only if using project does not make use of imported targets
+# here we should gather from all components
+set(DOOCS_CFLAGS "")
+set(DOOCS_LDFLAGS "")
+set(DOOCS_INCLUDE_DIRS "")
+set(DOOCS_LIBRARY_DIRS "")
+foreach(component api zmq server ddaq)
+    DOOCS_appendListToList(DOOCS_CFLAGS "${DOOCS_${component}_CFLAGS}")
+    DOOCS_appendListToList(DOOCS_LDFLAGS "${DOOCS_${component}_LDFLAGS}")
+    DOOCS_appendListToList(DOOCS_INCLUDE_DIRS "${DOOCS_${component}_INCLUDE_DIRS}")
+    DOOCS_appendListToList(DOOCS_LIBRARY_DIRS "${DOOCS_${component}_LIBRARY_DIRS}")
+endforeach()
+set(DOOCS_CXX_FLAGS ${DOOCS_CFLAGS})
+set(DOOCS_LINKER_FLAGS ${DOOCS_LDFLAGS})
+set(DOOCS_LINK_FLAGS ${DOOCS_LINKER_FLAGS})
 
 # use a macro provided by CMake to check if all the listed arguments are valid and set DOOCS_FOUND accordingly
 include(FindPackageHandleStandardArgs)
 FIND_PACKAGE_HANDLE_STANDARD_ARGS(DOOCS REQUIRED_VARS DOOCS_DIR VERSION_VAR DOOCS_VERSION )
-
-  
-# TODO : discuss whether --no-as-needed flag is acutually required, it's default behavior anyway and I don't
-# see why bother introduce it here, if it was not in doocs pkg-config.
-# discussion result: if final test succeeds without --no-as-needed, we leave it out.
-# Further, Martin K suggests to rename it PkgConfig:DOOCS -> ChimeraTK::DOOCS since we modified it.
-# But Martin H is against it, since it might be misleading - after loading ChimeraTK::DOOCS, there is no way back to load also PkgConfig::DOOCS.

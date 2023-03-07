@@ -5,13 +5,15 @@
 #
 # Expects the following input variables:
 #   ${PROJECT_NAME}_SOVERSION - version of the .so library file (or just MAJOR.MINOR without the patch level)
+#   ${PROJECT_NAME}_MEXFLAGS - (optional) mex compiler flags
+#
+# and only required, if project does not yet provide cmake-export:
 #   ${PROJECT_NAME}_INCLUDE_DIRS - list include directories needed when compiling against this project
 #   ${PROJECT_NAME}_LIBRARY_DIRS - list of library directories needed when linking against this project
 #   ${PROJECT_NAME}_LIBRARIES - list of additional libraries needed when linking against this project. The library
 #                               provided by the project will be added automatically
 #   ${PROJECT_NAME}_CXX_FLAGS - list of additional C++ compiler flags needed when compiling against this project
 #   ${PROJECT_NAME}_LINKER_FLAGS - list of additional linker flags needed when linking against this project
-#   ${PROJECT_NAME}_MEXFLAGS - (optional) mex compiler flags
 #
 #######################################################################################################################
 
