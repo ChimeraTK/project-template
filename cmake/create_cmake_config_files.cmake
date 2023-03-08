@@ -48,6 +48,17 @@ macro(appendToList list arg)
         string(REGEX REPLACE "^[ \t]+" "" ${list} "${${list}}")
     endif()
 endmacro()
+# prepend to (space-separated!) list, but only if not yet existing
+macro(prependToList list arg)
+    set(prependToList_arg "${arg}")
+    handleGeneratorExprs(prependToList_arg)
+    string(FIND " ${${list}} " " ${prependToList_arg} " prependToList_pos)
+    if (${prependToList_pos} EQUAL -1)
+        string(PREPEND ${list} "${prependToList_arg} ")
+        # strip trailing spaces since they might cause problems
+        string(REGEX REPLACE "[ \t]+$" "" ${list} "${${list}}")
+    endif()
+endmacro()
 
 # for lib, which might be lib File or linker flag or imported target, 
 # puts recursively resolved library list into ${linkLibs}, which will contain a library file list
@@ -72,7 +83,7 @@ function(resolveImportedLib lib linkLibs linkFlags incDirs cxxFlags)
                 # Therefore, we simply assume that by convention, all our libs are installed into ${CMAKE_INSTALL_PREFIX}/lib.
                 # Exceptions are allowed of a -L<libdir> is already in linker flags.
                 appendToList(linkFlags1 "-L${CMAKE_INSTALL_PREFIX}/lib")
-                appendToList(linkFlags1 "-l${PROJECT_NAME}")
+                appendToList(linkLibs1 "-l${PROJECT_NAME}")
             else()
                 get_property(lib_loc TARGET ${lib} PROPERTY LOCATION)
                 #message("imported target ${lib} is actual library. location=${lib_loc}")
@@ -118,7 +129,9 @@ function(resolveImportedLib lib linkLibs linkFlags incDirs cxxFlags)
 
     else()                          # link against library with -l option
         handleGeneratorExprs(lib)
-        appendToList(linkFlags1 "-l${lib}")
+        # although technically a linker flag, we put it to lib list because for some linker flags, it is important
+        # that they come before libs
+        appendToList(linkLibs1 "-l${lib}")
     endif()
     
     set(${linkLibs} "${linkLibs1}" PARENT_SCOPE)
@@ -182,8 +195,9 @@ else()
     foreach(LIBRARY ${LIST})
         resolveImportedLib(${LIBRARY} linkLibs linkFlags incDirs cxxFlags)
         #message("for lib ${LIBRARY}: add linkLibs=|${linkLibs}| linkFlags=|${linkFlags}|")
+        # for some linker flags, it is important that they come before the libs
+        prependToList(${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE "${linkFlags}")
         appendToList(${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE "${linkLibs}")
-        appendToList(${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE "${linkFlags}")
     endforeach()
 endif()
 #message("${PROJECT_NAME}: linker flags for makefile=|${${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE}|")
