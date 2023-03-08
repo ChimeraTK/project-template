@@ -38,6 +38,10 @@
 
 SET(DOOCS_FOUND 0)
 
+# if set, include the --no-as-needed linker flag which helps if inner dependencies between libs are not properly 
+# set inside the library binaries
+set(DOOCS_noAsNeededFlag 1)
+
 # note, helper functions and variables should also be prefixed with DOOCS_, since everything is exported to
 #  project calling find_package(DOOCS)
 
@@ -109,6 +113,17 @@ foreach(component ${DOOCS_FIND_COMPONENTS})
                 if (NOT (";${doocsLinkLibs};" MATCHES ";Threads::Threads;"))
                     set_target_properties(${importedTarget} PROPERTIES INTERFACE_LINK_LIBRARIES "${doocsLinkLibs};Threads::Threads" )
                 endif()
+                if(DOOCS_noAsNeededFlag)
+                    get_target_property(doocsLinkFlags ${importedTarget} INTERFACE_LINK_OPTIONS)
+                    string(REGEX REPLACE ".*-NOTFOUND" "" doocsLinkFlags "${doocsLinkFlags}")
+                    set_target_properties(${importedTarget} PROPERTIES INTERFACE_LINK_OPTIONS "-Wl,--no-as-needed;${doocsLinkFlags}")
+                endif()
+            else()
+                # since we did some changes on DOOCS::api, add that as implicit dependency of the other components
+                # This makes sure projects not explicitly linking to DOOCS::api have the changes
+                get_target_property(doocsLinkLibs ${importedTarget} INTERFACE_LINK_LIBRARIES)
+                string(REGEX REPLACE ".*-NOTFOUND" "" doocsLinkLibs "${doocsLinkLibs}")
+                set_target_properties(${importedTarget} PROPERTIES INTERFACE_LINK_LIBRARIES "DOOCS::api;${doocsLinkLibs}")
             endif()
             
             # print some info about targets
@@ -152,6 +167,9 @@ set(DOOCS_LIBRARIES ${DOOCS_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 # here we should gather from all components
 set(DOOCS_CFLAGS "")
 set(DOOCS_LDFLAGS "")
+if(DOOCS_noAsNeededFlag)
+    set(DOOCS_LDFLAGS "-Wl,--no-as-needed")
+endif()
 set(DOOCS_INCLUDE_DIRS "")
 set(DOOCS_LIBRARY_DIRS "")
 foreach(component api zmq server ddaq)
