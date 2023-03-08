@@ -73,10 +73,10 @@ function(resolveImportedLib lib linkLibs linkFlags incDirs cxxFlags)
     elseif(lib MATCHES "^[ \t]*-l")   # library name does not contain slashes but already the -l option: directly quote it
         appendToList(linkLibs1 "${lib}")
     elseif(lib MATCHES "::")    # library name is an imported target - we need to resolve it for Makefiles
-        get_target_property(_libraryType ${lib} TYPE)
-        if (${_libraryType} MATCHES "-NOTFOUND")
-            message(FATAL_ERROR "dependency ${lib} was not found!")
+        if (NOT TARGET ${lib})
+            message(FATAL_ERROR "dependency ${lib} not available as target, maybe find_package was forgotten?")
         endif()
+        get_target_property(_libraryType ${lib} TYPE)
         if ((${_libraryType} MATCHES SHARED_LIBRARY) OR (${_libraryType} MATCHES STATIC_LIBRARY))
             if(";${lib};" MATCHES ";.*::${PROJECT_NAME};")
                 # We cannot find target library location of this project via target properties at this point.
@@ -94,6 +94,9 @@ function(resolveImportedLib lib linkLibs linkFlags incDirs cxxFlags)
         if (NOT "${_linkLibs}" MATCHES "-NOTFOUND")
             message("imported target ${lib} is interface, recursively go over its interface requirements ${_linkLibs}")
             foreach(_lib ${_linkLibs})
+                if (${lib} STREQUAL ${_lib})
+                    message(FATAL_ERROR "self-reference in dependencies of ${_lib}! Aborting recursion.")
+                endif()
                 resolveImportedLib(${_lib} linkLibs2 linkFlags2 incDirs2 cxxFlags2)
                 appendToList(linkLibs1 "${linkLibs2}")
                 appendToList(linkFlags1 "${linkFlags2}")
@@ -101,6 +104,7 @@ function(resolveImportedLib lib linkLibs linkFlags incDirs cxxFlags)
                 appendToList(cxxFlags1 "${cxxFlags2}")
             endforeach()
         endif()
+
         get_target_property(_incDirs ${lib} INTERFACE_INCLUDE_DIRECTORIES)
         if (NOT "${_incDirs}" MATCHES "-NOTFOUND")
             foreach(INCLUDE_DIR ${_incDirs})
@@ -204,6 +208,9 @@ endif()
 
 set(${PROJECT_NAME}_PUBLIC_DEPENDENCIES_L "")
 foreach(DEPENDENCY ${${PROJECT_NAME}_PUBLIC_DEPENDENCIES})
+    # we only care about required dependencies: if some lib has an optional dependency and is built against it 
+    # after it has been found, the dependency became mandatory for downstream libs.
+    # Note, keyword REQUIRED as not according to spec but it works...
     string(APPEND ${PROJECT_NAME}_PUBLIC_DEPENDENCIES_L "find_package(${DEPENDENCY} REQUIRED)\n")
 endforeach()
 
