@@ -260,21 +260,18 @@ if(${PROVIDES_EXPORTED_TARGETS})
     #  imported targets should be namespaced, so define namespaced alias
     add_library(ChimeraTK::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
-    # defines CMAKE_INSTALL_LIBDIR etc
-    include(GNUInstallDirs)
-
     # generate and install export file
     install(EXPORT ${PROJECT_NAME}Targets
             FILE ${PROJECT_NAME}Targets.cmake
             NAMESPACE ChimeraTK::
-            DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}"
+            DESTINATION "lib/cmake/${PROJECT_NAME}"
     )
 
     include(CMakePackageConfigHelpers)
     # create config file
     configure_package_config_file("${PROJECT_BINARY_DIR}/cmake/${PROJECT_NAME}Config.cmake.in"
       "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake"
-      INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}"
+      INSTALL_DESTINATION "lib/cmake/${PROJECT_NAME}"
     )
 
     # remove any previously installed share/cmake-xx/Modules/Find<ProjectName>.cmake from this project since it does not harmonize with new Config
@@ -292,7 +289,7 @@ endif()
 install(FILES
           "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake"
           "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake"
-        DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}"
+        DESTINATION "lib/cmake/${PROJECT_NAME}"
         COMPONENT dev
 )
 
