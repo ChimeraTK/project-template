@@ -68,12 +68,10 @@ if(@PROVIDES_EXPORTED_TARGETS@)
 
     # include cmake's auto-generated exports file
     include("${CMAKE_CURRENT_LIST_DIR}/@PROJECT_NAME@Targets.cmake")
+    # this will set ${PROJECT_NAME}_FOUND if required components are missing
     check_required_components(@PROJECT_NAME@)
     
 else()
-    # The following variables are generated automatically for projects supporting cmake-exports.
-    set(@PROJECT_NAME@_INCLUDE_DIRS @@PROJECT_NAME@_INCLUDE_DIRS@)
-    set(@PROJECT_NAME@_LIBRARY_DIRS @@PROJECT_NAME@_LIBRARY_DIRS@)
     if(@@PROJECT_NAME@_HAS_LIBRARY@)
         # has true compiled library as output
         # The library itself must be "searched" using the FIND_LIBRARY command in the known install directory, to set
@@ -82,12 +80,21 @@ else()
           @CMAKE_INSTALL_PREFIX@/lib
           NO_DEFAULT_PATH
         )
-        set(@PROJECT_NAME@_LIBRARIES ${@PROJECT_NAME@_LIBRARY} @@PROJECT_NAME@_LIBRARIES@)
-    else()
-        set(@PROJECT_NAME@_LIBRARIES @@PROJECT_NAME@_LIBRARIES@)
+        if(NOT @PROJECT_NAME@_LIBRARY)
+            message("FIND_LIBRARY returned error: ${@PROJECT_NAME@_LIBRARY}")
+            set(@PROJECT_NAME@_FOUND FALSE)
+            # prepend it to lib list
+            set(@PROJECT_NAME@_LIBRARIES ${@PROJECT_NAME@_LIBRARY} ${@PROJECT_NAME@_LIBRARIES})
+        endif()
     endif()
-    set(@PROJECT_NAME@_CXX_FLAGS "@@PROJECT_NAME@_CXX_FLAGS@")
-    set(@PROJECT_NAME@_LINKER_FLAGS "@@PROJECT_NAME@_LINKER_FLAGS@ @@PROJECT_NAME@_LINK_FLAGS@")
-    set(@PROJECT_NAME@_LINK_FLAGS "@@PROJECT_NAME@_LINKER_FLAGS@ @@PROJECT_NAME@_LINK_FLAGS@")
-    
 endif() 
+
+# Compatibility layer definitions.
+# The following variables are generated automatically for projects supporting cmake-exports.
+# Otherwise, values must be provided as inputs to create_cmake_config_files.
+set(@PROJECT_NAME@_INCLUDE_DIRS @@PROJECT_NAME@_INCLUDE_DIRS@)
+set(@PROJECT_NAME@_LIBRARY_DIRS @@PROJECT_NAME@_LIBRARY_DIRS@)
+set(@PROJECT_NAME@_LIBRARIES ${@PROJECT_NAME@_LIBRARIES} @@PROJECT_NAME@_LIBRARIES@)
+set(@PROJECT_NAME@_CXX_FLAGS "@@PROJECT_NAME@_CXX_FLAGS@")
+set(@PROJECT_NAME@_LINKER_FLAGS "@@PROJECT_NAME@_LINKER_FLAGS@ @@PROJECT_NAME@_LINK_FLAGS@")
+set(@PROJECT_NAME@_LINK_FLAGS "@@PROJECT_NAME@_LINKER_FLAGS@ @@PROJECT_NAME@_LINK_FLAGS@")

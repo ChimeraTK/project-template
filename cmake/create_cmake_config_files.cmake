@@ -81,7 +81,7 @@ function(resolveImportedLib lib linkLibs linkFlags incDirs cxxFlags)
             if(";${lib};" MATCHES ";.*::${PROJECT_NAME};")
                 # We cannot find target library location of this project via target properties at this point.
                 # Therefore, we simply assume that by convention, all our libs are installed into ${CMAKE_INSTALL_PREFIX}/lib.
-                # Exceptions are allowed of a -L<libdir> is already in linker flags.
+                # Exceptions are allowed if -L<libdir> is already in linker flags
                 appendToList(linkFlags1 "-L${CMAKE_INSTALL_PREFIX}/lib")
                 appendToList(linkLibs1 "-l${PROJECT_NAME}")
             else()
@@ -149,7 +149,8 @@ endfunction()
 # sets the vars 
 # ${PROJECT_NAME}_INCLUDE_DIRS, ${PROJECT_NAME}_CXX_FLAGS, ${PROJECT_NAME}_LINKER_FLAGS ${PROJECT_NAME}_LIBRARIES
 # so that compatibility layer is provided automatically.
-# ${PROJECT_NAME}_LIBRARY_DIRS is no longer used, ${PROJECT_NAME}_LIBRARIES is fully resolved.
+# ${PROJECT_NAME}_LIBRARY_DIRS is no longer output, ${PROJECT_NAME}_LIBRARIES is fully resolved.
+# For compatibility, any input library dirs are added to linker flags.
 if(${PROVIDES_EXPORTED_TARGETS})
     #  imported targets should be namespaced, so define namespaced alias
     add_library(ChimeraTK::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
