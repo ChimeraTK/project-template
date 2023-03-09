@@ -15,8 +15,8 @@
 # must also have 
 #  install(TARGETS <PROJECT_NAME> EXPORT <PROJECT_NAME>Targets) 
 # before. The target will be named ChimeraTK::${PROJECT_NAME} .
-# We keep above mentioned return variables for compatibility, but finally, when all projects use imported targets, they
-# will become superfluous.
+# We keep above mentioned return variables for compatibility, but finally, when all projects use imported targets,
+# all execept _FOUND and _VERSION will be superfluous.
 #
 # @author Martin Killenberg, DESY
 #
@@ -40,13 +40,26 @@ FIND_LIBRARY(@PROJECT_NAME@_LIBRARY @PROJECT_NAME@
   @CMAKE_INSTALL_PREFIX@/lib
   NO_DEFAULT_PATH
 )
+#TODO check - I guess that won't work with cppext
+
+
+# In case of packages with components, loading dependencies can cause trouble if required component list are differ.
+# E.g. if Boost is required from the project, and also required from the dependency, but with less components, 
+# and the dependency is resolved later, then Boost_LIBRARIES content will be different than expected.
+# To protect against this, save state and restore it later.
+# Since imported targets are never unloaded, the loaded dependency should still work.
+set(Boost_LIBRARIES_savedState ${Boost_LIBRARIES})
 
 # this code loads public dependencies
 @@PROJECT_NAME@_PUBLIC_DEPENDENCIES_L@
+set(Boost_LIBRARIES ${Boost_LIBRARIES_savedState})
+message("restored: ${Boost_LIBRARIES}")
 
 # Since this file is already part of the installation to be found, the configuration can be hard-coded at
 # installation time
 set(@PROJECT_NAME@_VERSION "@@PROJECT_NAME@_SOVERSION@")
+# Note, most of the following variables are overwritten for projects supporting cmake-exports.
+# TODO - move into if clause, to be more clear.
 set(@PROJECT_NAME@_INCLUDE_DIRS @@PROJECT_NAME@_INCLUDE_DIRS@)
 set(@PROJECT_NAME@_LIBRARY_DIRS @@PROJECT_NAME@_LIBRARY_DIRS@)
 if(@@PROJECT_NAME@_HAS_LIBRARY@)
@@ -65,6 +78,7 @@ set(@PROJECT_NAME@_PREFIX "@CMAKE_INSTALL_PREFIX@")
 set(@PROJECT_NAME@_FOUND 0)
 include(FindPackageHandleStandardArgs)
 
+#TODO clean up
 # The FOUND_VAR option in FIND_PACKAGE_HANDLE_STANDARD_ARGS was introduced in cmake-2.8.11, but Ubuntu 12.04 has cmake-2.8.7 only.
 # Thus we use a work around here for older cmake versions.
 if("${CMAKE_VERSION}" VERSION_LESS 2.8.11)
