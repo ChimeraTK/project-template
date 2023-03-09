@@ -34,15 +34,6 @@
 #
 #######################################################################################################################
 
-# The library itself must be "searched" using the FIND_LIBRARY command in the known install directory, to set
-# the variable properly
-FIND_LIBRARY(@PROJECT_NAME@_LIBRARY @PROJECT_NAME@
-  @CMAKE_INSTALL_PREFIX@/lib
-  NO_DEFAULT_PATH
-)
-#TODO check - I guess that won't work with cppext
-
-
 # In case of packages with components, loading dependencies can cause trouble if required component list are differ.
 # E.g. if Boost is required from the project, and also required from the dependency, but with less components, 
 # and the dependency is resolved later, then Boost_LIBRARIES content will be different than expected.
@@ -53,43 +44,21 @@ set(Boost_LIBRARIES_savedState ${Boost_LIBRARIES})
 # this code loads public dependencies
 @@PROJECT_NAME@_PUBLIC_DEPENDENCIES_L@
 set(Boost_LIBRARIES ${Boost_LIBRARIES_savedState})
-message("restored: ${Boost_LIBRARIES}")
 
 # Since this file is already part of the installation to be found, the configuration can be hard-coded at
 # installation time
 set(@PROJECT_NAME@_VERSION "@@PROJECT_NAME@_SOVERSION@")
-# Note, most of the following variables are overwritten for projects supporting cmake-exports.
-# TODO - move into if clause, to be more clear.
-set(@PROJECT_NAME@_INCLUDE_DIRS @@PROJECT_NAME@_INCLUDE_DIRS@)
-set(@PROJECT_NAME@_LIBRARY_DIRS @@PROJECT_NAME@_LIBRARY_DIRS@)
-if(@@PROJECT_NAME@_HAS_LIBRARY@)
-  # has true compiled library as output
-  set(@PROJECT_NAME@_LIBRARIES ${@PROJECT_NAME@_LIBRARY} @@PROJECT_NAME@_LIBRARIES@)
-else()
-  set(@PROJECT_NAME@_LIBRARIES @@PROJECT_NAME@_LIBRARIES@)
-endif()
-set(@PROJECT_NAME@_CXX_FLAGS "@@PROJECT_NAME@_CXX_FLAGS@")
-set(@PROJECT_NAME@_LINKER_FLAGS "@@PROJECT_NAME@_LINKER_FLAGS@ @@PROJECT_NAME@_LINK_FLAGS@")
-set(@PROJECT_NAME@_LINK_FLAGS "@@PROJECT_NAME@_LINKER_FLAGS@ @@PROJECT_NAME@_LINK_FLAGS@")
 set(@PROJECT_NAME@_PREFIX "@CMAKE_INSTALL_PREFIX@")
 
 # Use a macro provided by CMake to check if all the listed arguments are valid and set @PROJECT_NAME@_FOUND accordingly.
 # This is mainly important to check the version.
-set(@PROJECT_NAME@_FOUND 0)
 include(FindPackageHandleStandardArgs)
 
-#TODO clean up
-# The FOUND_VAR option in FIND_PACKAGE_HANDLE_STANDARD_ARGS was introduced in cmake-2.8.11, but Ubuntu 12.04 has cmake-2.8.7 only.
-# Thus we use a work around here for older cmake versions.
 if("${CMAKE_VERSION}" VERSION_LESS 2.8.11)
-  # The old version always provides a variable with upper case project name, so we just copy that
-  FIND_PACKAGE_HANDLE_STANDARD_ARGS(@PROJECT_NAME@ REQUIRED_VARS @PROJECT_NAME@_PREFIX VERSION_VAR @PROJECT_NAME@_VERSION)
-  STRING(TOUPPER "@PROJECT_NAME@" PROJECT_NAME_UPPERCASE)
-  set(@PROJECT_NAME@_FOUND ${${PROJECT_NAME_UPPERCASE}_FOUND})
-else()
-  FIND_PACKAGE_HANDLE_STANDARD_ARGS(@PROJECT_NAME@ REQUIRED_VARS @PROJECT_NAME@_PREFIX VERSION_VAR @PROJECT_NAME@_VERSION FOUND_VAR @PROJECT_NAME@_FOUND)
+    # The FOUND_VAR option in FIND_PACKAGE_HANDLE_STANDARD_ARGS was introduced in cmake-2.8.11
+    message(FATAL_ERROR "cmake version too old, please upgrade.")
 endif()
-
+FIND_PACKAGE_HANDLE_STANDARD_ARGS(@PROJECT_NAME@ REQUIRED_VARS @PROJECT_NAME@_PREFIX VERSION_VAR @PROJECT_NAME@_VERSION FOUND_VAR @PROJECT_NAME@_FOUND)
 
 # switch for exported target. We don't do this automatically, because the calling CMakeLists.txt
 # first must be edited so that it properly defines PUBLIC set of compile and link options
@@ -100,4 +69,25 @@ if(@PROVIDES_EXPORTED_TARGETS@)
     # include cmake's auto-generated exports file
     include("${CMAKE_CURRENT_LIST_DIR}/@PROJECT_NAME@Targets.cmake")
     check_required_components(@PROJECT_NAME@)
+    
+else()
+    # The following variables are generated automatically for projects supporting cmake-exports.
+    set(@PROJECT_NAME@_INCLUDE_DIRS @@PROJECT_NAME@_INCLUDE_DIRS@)
+    set(@PROJECT_NAME@_LIBRARY_DIRS @@PROJECT_NAME@_LIBRARY_DIRS@)
+    if(@@PROJECT_NAME@_HAS_LIBRARY@)
+        # has true compiled library as output
+        # The library itself must be "searched" using the FIND_LIBRARY command in the known install directory, to set
+        # the variable properly
+        FIND_LIBRARY(@PROJECT_NAME@_LIBRARY @PROJECT_NAME@
+          @CMAKE_INSTALL_PREFIX@/lib
+          NO_DEFAULT_PATH
+        )
+        set(@PROJECT_NAME@_LIBRARIES ${@PROJECT_NAME@_LIBRARY} @@PROJECT_NAME@_LIBRARIES@)
+    else()
+        set(@PROJECT_NAME@_LIBRARIES @@PROJECT_NAME@_LIBRARIES@)
+    endif()
+    set(@PROJECT_NAME@_CXX_FLAGS "@@PROJECT_NAME@_CXX_FLAGS@")
+    set(@PROJECT_NAME@_LINKER_FLAGS "@@PROJECT_NAME@_LINKER_FLAGS@ @@PROJECT_NAME@_LINK_FLAGS@")
+    set(@PROJECT_NAME@_LINK_FLAGS "@@PROJECT_NAME@_LINKER_FLAGS@ @@PROJECT_NAME@_LINK_FLAGS@")
+    
 endif() 
