@@ -231,7 +231,7 @@ endif()
 # create the cmake find_package configuration file
 set(PACKAGE_INIT "@PACKAGE_INIT@") # replacement handled later, so leave untouched here
 cmake_policy(SET CMP0053 NEW) # less warnings about irrelevant stuff in comments
-configure_file(cmake/PROJECT_NAMEConfig.cmake.in.in "${PROJECT_BINARY_DIR}/cmake/Config.cmake.in" @ONLY)
+configure_file(cmake/PROJECT_NAMEConfig.cmake.in.in "${PROJECT_BINARY_DIR}/cmake/${PROJECT_NAME}Config.cmake.in" @ONLY)
 if(${PROVIDES_EXPORTED_TARGETS})
     # we will configure later
 else()
@@ -271,7 +271,7 @@ if(${PROVIDES_EXPORTED_TARGETS})
 
     include(CMakePackageConfigHelpers)
     # create config file
-    configure_package_config_file("${PROJECT_BINARY_DIR}/cmake/Config.cmake.in"
+    configure_package_config_file("${PROJECT_BINARY_DIR}/cmake/${PROJECT_NAME}Config.cmake.in"
       "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake"
       INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}"
     )
