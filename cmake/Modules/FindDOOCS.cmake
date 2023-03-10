@@ -51,7 +51,7 @@ function (DOOCS_addToPkgConfPath newPath)
     endif()
 endfunction()
 
-if(DEFINED DOOCS_DIR)
+if(DOOCS_DIR)
     DOOCS_addToPkgConfPath(${DOOCS_DIR}/pkgconfig)
 endif()
 DOOCS_addToPkgConfPath(/export/doocs/lib/pkgconfig)
