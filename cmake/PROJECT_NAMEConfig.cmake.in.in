@@ -82,8 +82,9 @@ else()
           NO_DEFAULT_PATH
         )
         if(NOT @PROJECT_NAME@_LIBRARY)
-            message("FIND_LIBRARY returned error: ${@PROJECT_NAME@_LIBRARY}")
             set(@PROJECT_NAME@_FOUND FALSE)
+            message(SEND_ERROR "FIND_LIBRARY returned error: ${@PROJECT_NAME@_LIBRARY}")
+        else()
             # prepend it to lib list
             set(@PROJECT_NAME@_LIBRARIES ${@PROJECT_NAME@_LIBRARY} ${@PROJECT_NAME@_LIBRARIES})
         endif()
