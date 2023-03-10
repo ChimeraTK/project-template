@@ -11,9 +11,10 @@
 #   @PROJECT_NAME@_CXX_FLAGS    : additional C++ compiler flags
 #   @PROJECT_NAME@_LINKER_FLAGS : additional linker flags
 #
-# If caller sets PROVIDES_EXPORTED_TARGETS, we also generate target EXPORTS. In this case the calling CMakeLists.txt
+# Note for exporting project:
+# If @PROJECT_NAME@ sets PROVIDES_EXPORTED_TARGETS, we also generate target EXPORTS. In this case the its CMakeLists.txt
 # must also have 
-#  install(TARGETS <PROJECT_NAME> EXPORT <PROJECT_NAME>Targets) 
+#  install(TARGETS  EXPORT ${PROJECT_NAME}Targets) 
 # before. The target will be named ChimeraTK::${PROJECT_NAME} .
 # We keep above mentioned return variables for compatibility, but finally, when all projects use imported targets,
 # all execept _FOUND and _VERSION will be superfluous.
@@ -39,11 +40,11 @@
 # and the dependency is resolved later, then Boost_LIBRARIES content will be different than expected.
 # To protect against this, save state and restore it later.
 # Since imported targets are never unloaded, the loaded dependency should still work.
-set(Boost_LIBRARIES_savedState ${Boost_LIBRARIES})
+set(Boost_LIBRARIES_savedState_@PROJECT_NAME@ ${Boost_LIBRARIES})
 
 # this code loads public dependencies
 @@PROJECT_NAME@_PUBLIC_DEPENDENCIES_L@
-set(Boost_LIBRARIES ${Boost_LIBRARIES_savedState})
+set(Boost_LIBRARIES ${Boost_LIBRARIES_savedState_@PROJECT_NAME@})
 
 # Since this file is already part of the installation to be found, the configuration can be hard-coded at
 # installation time

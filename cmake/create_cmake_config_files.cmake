@@ -92,7 +92,7 @@ function(resolveImportedLib lib linkLibs linkFlags incDirs cxxFlags)
         endif()
         get_target_property(_linkLibs ${lib} INTERFACE_LINK_LIBRARIES)
         if (NOT "${_linkLibs}" MATCHES "-NOTFOUND")
-            message("imported target ${lib} is interface, recursively go over its interface requirements ${_linkLibs}")
+            message(VERBOSE "imported target ${lib} is interface, recursively go over its interface requirements ${_linkLibs}")
             foreach(_lib ${_linkLibs})
                 if (${lib} STREQUAL ${_lib})
                     message(FATAL_ERROR "self-reference in dependencies of ${_lib}! Aborting recursion.")
@@ -164,20 +164,20 @@ if(${PROVIDES_EXPORTED_TARGETS})
     resolveImportedLib(ChimeraTK::${PROJECT_NAME} linkLibs linkFlags incDirs cxxFlags)
 
     # printing results will help resolve problems with auto-generated compatibility layer
-    message("explicitly provided compatibility layer,")
-    message("  old libset: ${${PROJECT_NAME}_LIBRARIES}")
-    message("  old linkflags: ${${PROJECT_NAME}_LINKER_FLAGS}")
-    message("  old cxxflags: ${${PROJECT_NAME}_CXX_FLAGS}")
-    message("  old incDirs: ${${PROJECT_NAME}_INCLUDE_DIRS}")
+    message(VERBOSE "explicitly provided compatibility layer,")
+    message(VERBOSE "  old libset: ${${PROJECT_NAME}_LIBRARIES}")
+    message(VERBOSE "  old linkflags: ${${PROJECT_NAME}_LINKER_FLAGS}")
+    message(VERBOSE "  old cxxflags: ${${PROJECT_NAME}_CXX_FLAGS}")
+    message(VERBOSE "  old incDirs: ${${PROJECT_NAME}_INCLUDE_DIRS}")
     set(${PROJECT_NAME}_INCLUDE_DIRS "${incDirs}" )
     set(${PROJECT_NAME}_LIBRARIES "${linkLibs}" )
     set(${PROJECT_NAME}_CXX_FLAGS "${cxxFlags}" )
     set(${PROJECT_NAME}_LINKER_FLAGS "${linkFlags}" )
-    message("automatically generated compatibility layer from cmake-exports,")
-    message("  new libset: ${${PROJECT_NAME}_LIBRARIES}")
-    message("  new linkflags: ${${PROJECT_NAME}_LINKER_FLAGS}")
-    message("  new cxxflags: ${${PROJECT_NAME}_CXX_FLAGS}")
-    message("  new incDirs: ${${PROJECT_NAME}_INCLUDE_DIRS}")
+    message(VERBOSE "will be overwritten by automatically generated compatibility layer from cmake-exports,")
+    message(VERBOSE "  new libset: ${${PROJECT_NAME}_LIBRARIES}")
+    message(VERBOSE "  new linkflags: ${${PROJECT_NAME}_LINKER_FLAGS}")
+    message(VERBOSE "  new cxxflags: ${${PROJECT_NAME}_CXX_FLAGS}")
+    message(VERBOSE "  new incDirs: ${${PROJECT_NAME}_INCLUDE_DIRS}")
 endif()
 
 # create variables for standard makefiles and pkgconfig
@@ -275,6 +275,7 @@ if(${PROVIDES_EXPORTED_TARGETS})
 
     include(CMakePackageConfigHelpers)
     # create config file
+    # although @ONLY arg is not supported, this behaves in the same way.
     configure_package_config_file("${PROJECT_BINARY_DIR}/cmake/${PROJECT_NAME}Config.cmake.in"
       "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake"
       INSTALL_DESTINATION "lib/cmake/${PROJECT_NAME}"
