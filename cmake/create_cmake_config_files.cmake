@@ -79,7 +79,8 @@ function(resolveImportedLib lib linkLibs linkFlags libDirs incDirs cxxFlags)
             message(FATAL_ERROR "dependency ${lib} not available as target, maybe find_package was forgotten?")
         endif()
         get_target_property(_libraryType ${lib} TYPE)
-        if ((${_libraryType} MATCHES SHARED_LIBRARY) OR (${_libraryType} MATCHES STATIC_LIBRARY))
+        # boost exports appear as UNKNOWN_LIBRARY but also have target location
+        if ((${_libraryType} MATCHES SHARED_LIBRARY) OR (${_libraryType} MATCHES STATIC_LIBRARY) OR (${_libraryType} MATCHES UNKNOWN_LIBRARY))
             if(";${lib};" MATCHES ";.*::${PROJECT_NAME};")
                 # We cannot find target library location of this project via target properties at this point.
                 # Therefore, we simply assume that by convention, all our libs are installed into ${CMAKE_INSTALL_PREFIX}/lib.
