@@ -63,9 +63,10 @@ endmacro()
 # for lib, which might be lib File or linker flag or imported target, 
 # puts recursively resolved library list into ${linkLibs}, which will contain a library file list
 # and recursively resolve link flags into ${linkFlags}
-function(resolveImportedLib lib linkLibs linkFlags incDirs cxxFlags)
+function(resolveImportedLib lib linkLibs linkFlags libDirs incDirs cxxFlags)
     set(linkLibs1 "")
     set(linkFlags1 "")
+    set(libDirs1 "")
     set(incDirs1 "")
     set(cxxFlags1 "")
     if(lib MATCHES "/")         # library name contains slashes: link against the a file path name
@@ -82,7 +83,8 @@ function(resolveImportedLib lib linkLibs linkFlags incDirs cxxFlags)
                 # We cannot find target library location of this project via target properties at this point.
                 # Therefore, we simply assume that by convention, all our libs are installed into ${CMAKE_INSTALL_PREFIX}/lib.
                 # Exceptions are allowed if -L<libdir> is already in linker flags
-                appendToList(linkFlags1 "-L${CMAKE_INSTALL_PREFIX}/lib")
+                #appendToList(linkFlags1 "-L${CMAKE_INSTALL_PREFIX}/lib")
+                appendToList(libDirs1 "${CMAKE_INSTALL_PREFIX}/lib")
                 appendToList(linkLibs1 "-l${PROJECT_NAME}")
             else()
                 get_property(lib_loc TARGET ${lib} PROPERTY LOCATION)
@@ -97,9 +99,10 @@ function(resolveImportedLib lib linkLibs linkFlags incDirs cxxFlags)
                 if (${lib} STREQUAL ${_lib})
                     message(FATAL_ERROR "self-reference in dependencies of ${_lib}! Aborting recursion.")
                 endif()
-                resolveImportedLib(${_lib} linkLibs2 linkFlags2 incDirs2 cxxFlags2)
+                resolveImportedLib(${_lib} linkLibs2 linkFlags2 libDirs2 incDirs2 cxxFlags2)
                 appendToList(linkLibs1 "${linkLibs2}")
                 appendToList(linkFlags1 "${linkFlags2}")
+                appendToList(libDirs1 "${libDirs2}")
                 appendToList(incDirs1 "${incDirs2}")
                 appendToList(cxxFlags1 "${cxxFlags2}")
             endforeach()
@@ -133,7 +136,8 @@ function(resolveImportedLib lib linkLibs linkFlags incDirs cxxFlags)
         if (NOT "${_linkDirs}" MATCHES "-NOTFOUND")
             foreach(flag ${_linkDirs})
                 handleGeneratorExprs(flag)
-                appendToList(linkFlags1 "-L${flag}")
+                #appendToList(linkFlags1 "-L${flag}")
+                appendToList(libDirs1 "${flag}")
             endforeach()
         endif()
 
@@ -146,22 +150,21 @@ function(resolveImportedLib lib linkLibs linkFlags incDirs cxxFlags)
     
     set(${linkLibs} "${linkLibs1}" PARENT_SCOPE)
     set(${linkFlags} "${linkFlags1}" PARENT_SCOPE)
+    set(${libDirs} "${libDirs1}" PARENT_SCOPE)
     set(${incDirs} "${incDirs1}" PARENT_SCOPE)
     set(${cxxFlags} "${cxxFlags1}" PARENT_SCOPE)
 endfunction()
 
 
 # if we already have cmake-exports for this project:
-# sets the vars 
-# ${PROJECT_NAME}_INCLUDE_DIRS, ${PROJECT_NAME}_CXX_FLAGS, ${PROJECT_NAME}_LINKER_FLAGS ${PROJECT_NAME}_LIBRARIES
+# sets the vars ${PROJECT_NAME}_INCLUDE_DIRS, ${PROJECT_NAME}_CXX_FLAGS, ${PROJECT_NAME}_LIBRARY_DIRS,
+# ${PROJECT_NAME}_LINKER_FLAGS, and ${PROJECT_NAME}_LIBRARIES
 # so that compatibility layer is provided automatically.
-# ${PROJECT_NAME}_LIBRARY_DIRS is no longer output, ${PROJECT_NAME}_LIBRARIES is fully resolved.
-# For compatibility, any input library dirs are added to linker flags.
 if(${PROVIDES_EXPORTED_TARGETS})
     #  imported targets should be namespaced, so define namespaced alias
     add_library(ChimeraTK::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
-    resolveImportedLib(ChimeraTK::${PROJECT_NAME} linkLibs linkFlags incDirs cxxFlags)
+    resolveImportedLib(ChimeraTK::${PROJECT_NAME} linkLibs linkFlags libDirs incDirs cxxFlags)
 
     # printing results will help resolve problems with auto-generated compatibility layer
     message(VERBOSE "explicitly provided compatibility layer,")
@@ -169,7 +172,9 @@ if(${PROVIDES_EXPORTED_TARGETS})
     message(VERBOSE "  old linkflags: ${${PROJECT_NAME}_LINKER_FLAGS}")
     message(VERBOSE "  old cxxflags: ${${PROJECT_NAME}_CXX_FLAGS}")
     message(VERBOSE "  old incDirs: ${${PROJECT_NAME}_INCLUDE_DIRS}")
+    message(VERBOSE "  old libDirs: ${${PROJECT_NAME}_LIBRARY_DIRS}")
     set(${PROJECT_NAME}_INCLUDE_DIRS "${incDirs}" )
+    set(${PROJECT_NAME}_LIBRARY_DIRS "${libDirs}" )
     set(${PROJECT_NAME}_LIBRARIES "${linkLibs}" )
     set(${PROJECT_NAME}_CXX_FLAGS "${cxxFlags}" )
     set(${PROJECT_NAME}_LINKER_FLAGS "${linkFlags}" )
@@ -178,6 +183,7 @@ if(${PROVIDES_EXPORTED_TARGETS})
     message(VERBOSE "  new linkflags: ${${PROJECT_NAME}_LINKER_FLAGS}")
     message(VERBOSE "  new cxxflags: ${${PROJECT_NAME}_CXX_FLAGS}")
     message(VERBOSE "  new incDirs: ${${PROJECT_NAME}_INCLUDE_DIRS}")
+    message(VERBOSE "  new libDirs: ${${PROJECT_NAME}_LIBRARY_DIRS}")
 endif()
 
 # create variables for standard makefiles and pkgconfig
