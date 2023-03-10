@@ -4,7 +4,7 @@
 #
 # By default, only the client API is included. If the component "server" is specified, also the
 # server library will be used. If the component "zmq" is specified, the DOOCSdzmq library will be used as well.
-# Currently support components: api, server, zmq, dapi, ddaq, daqreader, daqsndlib
+# Currently support components: api, server, zmq, dapi, ddaq, daqreader, daqsndlib, timinglib
 #
 # returns:
 #   DOOCS_FOUND        : true or false, depending on whether the package was found
@@ -65,24 +65,23 @@ endif()
 function(expandDoocsComponentName longName shortName)
     if (";${shortName};" MATCHES ";api;")
         set(${longName} "doocs-doocsapi" PARENT_SCOPE)
-    endif()
-    if (";${shortName};" MATCHES ";zmq;")
+    elseif (";${shortName};" MATCHES ";zmq;")
         set(${longName} "doocs-doocsdzmq" PARENT_SCOPE)
-    endif()
-    if (";${shortName};" MATCHES ";dapi;")
+    elseif (";${shortName};" MATCHES ";dapi;")
         set(${longName} "doocs-doocsdapi" PARENT_SCOPE)
-    endif()
-    if (";${shortName};" MATCHES ";server;")
+    elseif (";${shortName};" MATCHES ";server;")
         set(${longName} "doocs-serverlib" PARENT_SCOPE)
-    endif()
-    if (";${shortName};" MATCHES ";ddaq;")
+    elseif (";${shortName};" MATCHES ";ddaq;")
         set(${longName} "doocs-doocsddaq" PARENT_SCOPE)
-    endif()
-    if (";${shortName};" MATCHES ";daqreader;")
+    elseif (";${shortName};" MATCHES ";daqreader;")
         set(${longName} "doocs-daqreaderlib" PARENT_SCOPE)
-    endif()
-    if (";${shortName};" MATCHES ";daqsndlib;")
+    elseif (";${shortName};" MATCHES ";daqsndlib;")
         set(${longName} "doocs-daqsndlib" PARENT_SCOPE)
+    elseif (";${shortName};" MATCHES ";timinglib;")
+        # we define it as alias to doocs-doocsapi and check additional requirements
+        set(${longName} "doocs-doocsapi" PARENT_SCOPE)
+    else()
+        set(${longName} "${shortName}" PARENT_SCOPE)
     endif()
 endfunction()
 
@@ -137,10 +136,25 @@ foreach(component ${DOOCS_FIND_COMPONENTS})
             message("  link libs: ${doocsLinkLibs}")
             get_target_property(doocsLinkDirs ${importedTarget} INTERFACE_LINK_DIRECTORIES)
             message("  link dirs: ${doocsLinkDirs}")
+       
         else()
             message(FATAL_ERROR "DOOCS component ${component} not found!")
         endif()
     endif()
+    if(${component} STREQUAL "timinglib")
+        # Find doocs/TimingWord.h from dev-doocs-doocstiminglib
+        # which unfortunately does not provide pkgconfig
+        find_path(DOOCS_timingLib_INCLUDE_DIRS doocs/TimingWord.h REQUIRED PATHS ${DOOCS_api_INCLUDE_DIRS})
+        if (NOT DOOCS_timingLib_INCLUDE_DIRS)
+            message(FATAL_ERROR "FindDOOCS: Failed to find TimingWord.h")
+            set(DOOCS_timingLib_FOUND FALSE)
+        else()
+            message("FindDOOCS: Found timinglib, include dirs: ${DOOCS_timingLib_INCLUDE_DIRS}")
+            set(DOOCS_timingLib_FOUND TRUE)
+            # include dir is always same as for api component, so alias is sufficient
+            add_library(DOOCS::${component} ALIAS PkgConfig::DOOCS_api)
+        endif()
+    endif()    
 endforeach()
 message("complete list of searched components: ${DOOCS_FIND_COMPONENTS_ALL}")
 
@@ -172,7 +186,7 @@ if(DOOCS_noAsNeededFlag)
 endif()
 set(DOOCS_INCLUDE_DIRS "")
 set(DOOCS_LIBRARY_DIRS "")
-foreach(component api zmq server ddaq)
+foreach(component api zmq server ddaq daqreader daqsndlib)
     DOOCS_appendListToList(DOOCS_CFLAGS "${DOOCS_${component}_CFLAGS}")
     DOOCS_appendListToList(DOOCS_LDFLAGS "${DOOCS_${component}_LDFLAGS}")
     DOOCS_appendListToList(DOOCS_INCLUDE_DIRS "${DOOCS_${component}_INCLUDE_DIRS}")
