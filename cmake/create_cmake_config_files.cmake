@@ -63,6 +63,7 @@ endmacro()
 # for lib, which might be lib File or linker flag or imported target, 
 # puts recursively resolved library list into ${linkLibs}, which will contain a library file list
 # and recursively resolve link flags into ${linkFlags}
+# Note, since some projects ignore libDirs, we put them also into linkFlags.
 function(resolveImportedLib lib linkLibs linkFlags libDirs incDirs cxxFlags)
     set(linkLibs1 "")
     set(linkFlags1 "")
@@ -83,7 +84,7 @@ function(resolveImportedLib lib linkLibs linkFlags libDirs incDirs cxxFlags)
                 # We cannot find target library location of this project via target properties at this point.
                 # Therefore, we simply assume that by convention, all our libs are installed into ${CMAKE_INSTALL_PREFIX}/lib.
                 # Exceptions are allowed if -L<libdir> is already in linker flags
-                #appendToList(linkFlags1 "-L${CMAKE_INSTALL_PREFIX}/lib")
+                appendToList(linkFlags1 "-L${CMAKE_INSTALL_PREFIX}/lib")
                 appendToList(libDirs1 "${CMAKE_INSTALL_PREFIX}/lib")
                 appendToList(linkLibs1 "-l${PROJECT_NAME}")
             else()
@@ -136,7 +137,7 @@ function(resolveImportedLib lib linkLibs linkFlags libDirs incDirs cxxFlags)
         if (NOT "${_linkDirs}" MATCHES "-NOTFOUND")
             foreach(flag ${_linkDirs})
                 handleGeneratorExprs(flag)
-                #appendToList(linkFlags1 "-L${flag}")
+                appendToList(linkFlags1 "-L${flag}")
                 appendToList(libDirs1 "${flag}")
             endforeach()
         endif()
@@ -191,18 +192,20 @@ set(${PROJECT_NAME}_CXX_FLAGS_MAKEFILE "${${PROJECT_NAME}_CXX_FLAGS}")
 
 string(REPLACE " " ";" LIST "${${PROJECT_NAME}_INCLUDE_DIRS}")
 foreach(INCLUDE_DIR ${LIST})
-  set(${PROJECT_NAME}_CXX_FLAGS_MAKEFILE "${${PROJECT_NAME}_CXX_FLAGS_MAKEFILE} -I${INCLUDE_DIR}")
+  appendToList(${PROJECT_NAME}_CXX_FLAGS_MAKEFILE "-I${INCLUDE_DIR}")
 endforeach()
 
 # some old code still might call linker flags _LINK_FLAGS, also include that
-set(${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE "${${PROJECT_NAME}_LINKER_FLAGS} ${${PROJECT_NAME}_LINK_FLAGS}")
+string(REPLACE " " ";" LIST "${${PROJECT_NAME}_LINK_FLAGS}")
+foreach(linkFlag ${LIST})
+  appendToList(${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE "${linkFlag}")
+endforeach()
 
 string(REPLACE " " ";" LIST "${${PROJECT_NAME}_LIBRARY_DIRS}")
 foreach(LIBRARY_DIR ${LIST})
   appendToList(${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE "-L${LIBRARY_DIR}")
 endforeach()
 
-#message("${PROJECT_NAME}: linker flags for makefile, before recursive lib resolution=|${${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE}|")
 if(${PROVIDES_EXPORTED_TARGETS})
     # libraries have already been resolved above, add them to linker flags
     appendToList(${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE "${${PROJECT_NAME}_LIBRARIES}")
