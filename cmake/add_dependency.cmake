@@ -53,3 +53,12 @@ FUNCTION(add_dependency dependency_project_name required_version)
   SET(${dependency_project_name}_PREFIX ${${dependency_project_name}_PREFIX} PARENT_SCOPE)
 ENDFUNCTION(add_dependency)
 
+# make sure that cmake finds modules provided by project-template.
+# since with new cmake concept for imported targets, dependencies also search for implicit dependencies, 
+# all projects using add_dependency also require this module path.
+set(_projectTemplateModulePath ${CMAKE_SOURCE_DIR}/cmake/Modules)
+# substr search is better than regex if paths have special characters
+string(FIND ":${CMAKE_MODULE_PATH}:" ":${_projectTemplateModulePath}:" _projectTemplateModulePathPos)
+if (${_projectTemplateModulePathPos} EQUAL -1)
+    list(APPEND CMAKE_MODULE_PATH "${_projectTemplateModulePath}")
+endif()
