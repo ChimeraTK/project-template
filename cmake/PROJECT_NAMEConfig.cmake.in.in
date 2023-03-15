@@ -55,10 +55,6 @@ set(@PROJECT_NAME@_PREFIX "@CMAKE_INSTALL_PREFIX@")
 # This is mainly important to check the version.
 include(FindPackageHandleStandardArgs)
 
-if("${CMAKE_VERSION}" VERSION_LESS 2.8.11)
-    # The FOUND_VAR option in FIND_PACKAGE_HANDLE_STANDARD_ARGS was introduced in cmake-2.8.11
-    message(FATAL_ERROR "cmake version too old, please upgrade.")
-endif()
 FIND_PACKAGE_HANDLE_STANDARD_ARGS(@PROJECT_NAME@ REQUIRED_VARS @PROJECT_NAME@_PREFIX VERSION_VAR @PROJECT_NAME@_VERSION FOUND_VAR @PROJECT_NAME@_FOUND)
 
 # switch for exported target. We don't do this automatically, because the calling CMakeLists.txt
@@ -94,7 +90,7 @@ endif()
 # Compatibility layer definitions.
 # The following variables are generated automatically for projects supporting cmake-exports.
 # Otherwise, values must be provided as inputs to create_cmake_config_files.
-# The types of generated lists are precisely as old in DeviceAccess config
+# The types of generated lists are precisely as in old DeviceAccess config
 # inc dirs, lib dirs, libs are ";" separated
 # cxx flags, link flags are " " separated
 # ";" separated
