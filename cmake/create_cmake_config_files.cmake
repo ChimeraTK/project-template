@@ -72,7 +72,9 @@ function(resolveImportedLib lib linkLibs linkFlags libDirs incDirs cxxFlags)
     set(cxxFlags1 "")
     if(lib MATCHES "/")         # library name contains slashes: link against the a file path name
         appendToList(linkLibs1 "${lib}")
-    elseif(lib MATCHES "^[ \t]*-l")   # library name does not contain slashes but already the -l option: directly quote it
+    elseif(lib MATCHES "^[ \t]*-l")
+        # library name does not contain slashes but already the -l option: directly quote it
+        # although technically a linker flag, we put it to lib list because order matters sometimes
         appendToList(linkLibs1 "${lib}")
     elseif(lib MATCHES "::")    # library name is an imported target - we need to resolve it for Makefiles
         if (NOT TARGET ${lib})
@@ -320,5 +322,3 @@ install(FILES
         DESTINATION "lib/cmake/${PROJECT_NAME}"
         COMPONENT dev
 )
-
-
