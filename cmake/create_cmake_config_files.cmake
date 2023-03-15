@@ -37,27 +37,33 @@ macro(handleGeneratorExprs var)
     string(REGEX REPLACE "\\$<.*>" "" ${var} "${${var}}")
 endmacro()
 
-# append to (space-separated!) list, but only if not yet existing
+# append element-wise to (space-separated!) list, but only if not yet existing
+# arg is allowed to be space-separated or ;-separated list
 macro(appendToList list arg)
-    set(appendToList_arg "${arg}")
-    handleGeneratorExprs(appendToList_arg)
-    string(FIND " ${${list}} " " ${appendToList_arg} " appendToList_pos)
-    if (${appendToList_pos} EQUAL -1)
-        string(APPEND ${list} " ${appendToList_arg}")
-        # strip leading spaces since they might cause problems
-        string(REGEX REPLACE "^[ \t]+" "" ${list} "${${list}}")
-    endif()
+    string(REPLACE " " ";" appendToList_args "${arg}")
+    foreach(item ${appendToList_args})
+        handleGeneratorExprs(item)
+        string(FIND " ${${list}} " " ${item} " appendToList_pos)
+        if (${appendToList_pos} EQUAL -1)
+            string(APPEND ${list} " ${item}")
+            # strip leading spaces since they might cause problems
+            string(REGEX REPLACE "^[ \t]+" "" ${list} "${${list}}")
+        endif()
+    endforeach()
 endmacro()
-# prepend to (space-separated!) list, but only if not yet existing
+# prepend element-wise to (space-separated!) list, but only if not yet existing
+# arg is allowed to be space-separated or ;-separated list
 macro(prependToList list arg)
-    set(prependToList_arg "${arg}")
-    handleGeneratorExprs(prependToList_arg)
-    string(FIND " ${${list}} " " ${prependToList_arg} " prependToList_pos)
-    if (${prependToList_pos} EQUAL -1)
-        string(PREPEND ${list} "${prependToList_arg} ")
-        # strip trailing spaces since they might cause problems
-        string(REGEX REPLACE "[ \t]+$" "" ${list} "${${list}}")
-    endif()
+    string(REPLACE " " ";" prependToList_args "${arg}")
+    foreach(item ${prependToList_args})
+        handleGeneratorExprs(item)
+        string(FIND " ${${list}} " " ${item} " prependToList_pos)
+        if (${prependToList_pos} EQUAL -1)
+            string(PREPEND ${list} "${item} ")
+            # strip trailing spaces since they might cause problems
+            string(REGEX REPLACE "[ \t]+$" "" ${list} "${${list}}")
+        endif()
+    endforeach()
 endmacro()
 
 # for lib, which might be lib File or linker flag or imported target, 
@@ -113,31 +119,25 @@ function(resolveImportedLib lib linkLibs linkFlags libDirs incDirs cxxFlags)
         endif()
 
         get_target_property(_incDirs ${lib} INTERFACE_INCLUDE_DIRECTORIES)
-        if (NOT "${_incDirs}" MATCHES "-NOTFOUND")
-            foreach(INCLUDE_DIR ${_incDirs})
-                appendToList(incDirs1 "${INCLUDE_DIR}")
-            endforeach()
+        if (_incDirs)
+            appendToList(incDirs1 "${_incDirs}")
         endif()
         get_target_property(_cxxFlags ${lib} INTERFACE_COMPILE_OPTIONS)
-        if (NOT "${_cxxFlags}" MATCHES "-NOTFOUND")
-            foreach(flag ${_cxxFlags})
-                appendToList(cxxFlags1 "${flag}")
-            endforeach()
+        if (_cxxFlags)
+            appendToList(cxxFlags1 "${_cxxFlags}")
         endif()
         get_target_property(_cxxFlags ${lib} INTERFACE_COMPILE_DEFINITIONS)
-        if (NOT "${_cxxFlags}" MATCHES "-NOTFOUND")
+        if (_cxxFlags)
             foreach(flag ${_cxxFlags})
                 appendToList(cxxFlags1 "-D${flag}")
             endforeach()
         endif()
         get_target_property(_linkFlags ${lib} INTERFACE_LINK_OPTIONS)
-        if (NOT "${_linkFlags}" MATCHES "-NOTFOUND")
-            foreach(flag ${_linkFlags})
-                appendToList(linkFlags1 "${flag}")
-            endforeach()
+        if (_linkFlags)
+            appendToList(linkFlags1 "${_linkFlags}")
         endif()
         get_target_property(_linkDirs ${lib} INTERFACE_LINK_DIRECTORES)
-        if (NOT "${_linkDirs}" MATCHES "-NOTFOUND")
+        if (_linkDirs)
             foreach(flag ${_linkDirs})
                 handleGeneratorExprs(flag)
                 appendToList(linkFlags1 "-L${flag}")
@@ -145,7 +145,8 @@ function(resolveImportedLib lib linkLibs linkFlags libDirs incDirs cxxFlags)
             endforeach()
         endif()
 
-    else()                          # link against library with -l option
+    else()
+        # link against library with -l option
         handleGeneratorExprs(lib)
         # although technically a linker flag, we put it to lib list because for some linker flags, it is important
         # that they come before libs
@@ -199,10 +200,7 @@ foreach(INCLUDE_DIR ${LIST})
 endforeach()
 
 # some old code still might call linker flags _LINK_FLAGS, also include that
-string(REPLACE " " ";" LIST "${${PROJECT_NAME}_LINK_FLAGS}")
-foreach(linkFlag ${LIST})
-  appendToList(${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE "${linkFlag}")
-endforeach()
+appendToList(${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE "${${PROJECT_NAME}_LINK_FLAGS}")
 
 string(REPLACE " " ";" LIST "${${PROJECT_NAME}_LIBRARY_DIRS}")
 foreach(LIBRARY_DIR ${LIST})
@@ -217,14 +215,14 @@ else()
     string(REPLACE " " ";" LIST "${PROJECT_NAME} ${${PROJECT_NAME}_LIBRARIES}")
     foreach(LIBRARY ${LIST})
         resolveImportedLib(${LIBRARY} linkLibs linkFlags libDirs incDirs cxxFlags)
-        string(REPLACE " " ";" LIST "${cxxFlags}")
-        foreach(cxxFlag ${LIST})
-            appendToList(${PROJECT_NAME}_CXX_FLAGS_MAKEFILE "${cxxFlag}")
-        endforeach()
+        
+        appendToList(${PROJECT_NAME}_CXX_FLAGS_MAKEFILE "${cxxFlags}")
+        
         string(REPLACE " " ";" LIST "${incDirs}")
         foreach(INCLUDE_DIR ${LIST})
             appendToList(${PROJECT_NAME}_CXX_FLAGS_MAKEFILE "-I${INCLUDE_DIR}")
         endforeach()
+        
         # for some linker flags, it is important that they come before the libs
         prependToList(${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE "${linkFlags}")
         appendToList(${PROJECT_NAME}_LINKER_FLAGS_MAKEFILE "${linkLibs}")
