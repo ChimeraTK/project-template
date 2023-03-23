@@ -96,8 +96,8 @@ function(resolveImportedLib lib linkLibs linkFlags libDirs incDirs cxxFlags)
                 # We cannot find target library location of this project via target properties at this point.
                 # Therefore, we simply assume that by convention, all our libs are installed into ${CMAKE_INSTALL_PREFIX}/lib.
                 # Exceptions are allowed if -L<libdir> is already in linker flags
-                appendToList(linkFlags1 "-L${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}")
-                appendToList(libDirs1 "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}")
+                appendToList(linkFlags1 "-L${CMAKE_INSTALL_FULL_LIBDIR}")
+                appendToList(libDirs1 "${CMAKE_INSTALL_FULL_LIBDIR}")
                 appendToList(linkLibs1 "-l${PROJECT_NAME}")
             else()
                 get_property(lib_loc TARGET ${lib} PROPERTY LOCATION)
