@@ -50,6 +50,8 @@ if(DOXYGEN_FOUND)
   #The optional allows make install to run even if documentation has not been build.
   install(DIRECTORY ${CMAKE_BINARY_DIR}/doc/ DESTINATION share/doc/${PROJECT_NAME}-${${PROJECT_NAME}_SOVERSION}
           COMPONENT doc OPTIONAL)
+  # Add index.hmtl forward in doc folder, to make it obvious to find and unneccsary to search for the doxygen generated index in the heap of other files.
+  configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/DoxyIndex.html.in ${CMAKE_CURRENT_BINARY_DIR}/doc/index.html @ONLY)
 else(DOXYGEN_FOUND)
   message("Doxygen not found, documentation cannot be build.")
 endif(DOXYGEN_FOUND) 
