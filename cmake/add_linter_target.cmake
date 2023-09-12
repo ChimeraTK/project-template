@@ -6,6 +6,8 @@ if (CTK_ENABLE_TIDY_WHILE_BUILDING)
 endif()
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 add_custom_target(run-linter run-clang-tidy-${CTK_CLANG_TIDY_VERSION})
+add_custom_target(fix-linter-stepwise
+    ${CMAKE_SOURCE_DIR}/cmake/fix-linter-for-all.py --tidy=clang-tidy-${CTK_CLANG_TIDY_VERSION} --apply-tool=clang-apply-replacements-${CTK_CLANG_TIDY_VERSION} --exclude="${CMAKE_BINARY_DIR}" ${CMAKE_BINARY_DIR}/compile_commands.json)
 add_custom_target(fix-linter run-clang-tidy-${CTK_CLANG_TIDY_VERSION} -fix -format)
 
 
